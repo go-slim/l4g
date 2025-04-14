@@ -17,6 +17,8 @@ var (
 	NewLoggerFunc func(name string) *Logger
 )
 
+const newline = "\n"
+
 func init() {
 	std = New(os.Stderr)
 	poll = make(map[string]*Logger)
@@ -44,9 +46,24 @@ func Channel(name string) *Logger {
 // Default returns the default logger used by the package-level output functions.
 func Default() *Logger { return std }
 
+// Output returns the output destination for the standard logger.
+func Output() io.Writer {
+	return std.Output()
+}
+
 // SetOutput sets the output destination for the standard logger.
 func SetOutput(w io.Writer) {
 	std.SetOutput(w)
+}
+
+// Prefix returns the output prefix for the standard logger.
+func Prefix() string {
+	return std.Prefix()
+}
+
+// SetPrefix sets the output prefix for the standard logger.
+func SetPrefix(prefix string) {
+	std.SetPrefix(prefix)
 }
 
 // Flags returns the output flags for the standard logger.
@@ -61,42 +78,45 @@ func SetFlags(flag int) {
 	std.SetFlags(flag)
 }
 
-// Prefix returns the output prefix for the standard logger.
-func Prefix() string {
-	return std.Prefix()
-}
-
-// SetPrefix sets the output prefix for the standard logger.
-func SetPrefix(prefix string) {
-	std.SetPrefix(prefix)
-}
-
 func GetLevel() Level {
-	return std.Level()
+	return Level(std.Level())
 }
 
 func SetLevel(level Level) {
-	std.SetLevel(level)
+	std.SetLevel(int(level))
 }
 
 func StacktraceLevel() Level {
-	return std.StacktraceLevel()
+	return Level(std.StacktraceLevel())
 }
 
 func SetStacktraceLevel(level Level) {
-	std.SetStacktraceLevel(level)
+	std.SetStacktraceLevel(int(level))
 }
 
-// Writer returns the output destination for the standard logger.
-func Writer() io.Writer {
-	return std.Writer()
+func Print(i ...any) {
+	std.log(2, 0, func(b []byte) []byte {
+		return fmt.Appendln(b, i...)
+	})
+}
+
+func Printf(format string, args ...any) {
+	std.log(2, 0, func(b []byte) []byte {
+		return fmt.Appendf(b, format+newline, args...)
+	})
+}
+
+func Printj(j map[string]any) {
+	std.log(2, 0, func(b []byte) []byte {
+		return appendj(b, j)
+	})
 }
 
 // Debug calls Output to print to the standard logger.
 // Arguments are handled in the manner of [fmt.Print].
 func Debug(v ...any) {
 	std.log(2, DEBUG, func(b []byte) []byte {
-		return fmt.Append(b, v...)
+		return fmt.Appendln(b, v...)
 	})
 }
 
@@ -104,15 +124,15 @@ func Debug(v ...any) {
 // Arguments are handled in the manner of [fmt.Printf].
 func Debugf(format string, v ...any) {
 	std.log(2, DEBUG, func(b []byte) []byte {
-		return fmt.Appendf(b, format, v...)
+		return fmt.Appendf(b, format+newline, v...)
 	})
 }
 
-// Debugln calls Output to print to the standard logger.
+// Debugj calls Output to print to the standard logger.
 // Arguments are handled in the manner of [fmt.Println].
-func Debugln(v ...any) {
+func Debugj(j map[string]any) {
 	std.log(2, DEBUG, func(b []byte) []byte {
-		return fmt.Appendln(b, v...)
+		return appendj(b, j)
 	})
 }
 
@@ -120,7 +140,7 @@ func Debugln(v ...any) {
 // Arguments are handled in the manner of [fmt.Print].
 func Info(v ...any) {
 	std.log(2, INFO, func(b []byte) []byte {
-		return fmt.Append(b, v...)
+		return fmt.Appendln(b, v...)
 	})
 }
 
@@ -132,11 +152,11 @@ func Infof(format string, v ...any) {
 	})
 }
 
-// Infoln calls Output to print to the standard logger.
+// Infoj calls Write to print to the standard logger.
 // Arguments are handled in the manner of [fmt.Println].
-func Infoln(v ...any) {
+func Infoj(j map[string]any) {
 	std.log(2, INFO, func(b []byte) []byte {
-		return fmt.Appendln(b, v...)
+		return appendj(b, j)
 	})
 }
 
@@ -144,7 +164,7 @@ func Infoln(v ...any) {
 // Arguments are handled in the manner of [fmt.Print].
 func Warn(v ...any) {
 	std.log(2, WARN, func(b []byte) []byte {
-		return fmt.Append(b, v...)
+		return fmt.Appendln(b, v...)
 	})
 }
 
@@ -152,15 +172,15 @@ func Warn(v ...any) {
 // Arguments are handled in the manner of [fmt.Printf].
 func Warnf(format string, v ...any) {
 	std.log(2, WARN, func(b []byte) []byte {
-		return fmt.Appendf(b, format, v...)
+		return fmt.Appendf(b, format+newline, v...)
 	})
 }
 
-// Warnln calls Output to print to the standard logger.
+// Warnj calls Output to print to the standard logger.
 // Arguments are handled in the manner of [fmt.Println].
-func Warnln(v ...any) {
+func Warnj(j map[string]any) {
 	std.log(2, WARN, func(b []byte) []byte {
-		return fmt.Appendln(b, v...)
+		return appendj(b, j)
 	})
 }
 
@@ -168,7 +188,7 @@ func Warnln(v ...any) {
 // Arguments are handled in the manner of [fmt.Print].
 func Error(v ...any) {
 	std.log(2, ERROR, func(b []byte) []byte {
-		return fmt.Append(b, v...)
+		return fmt.Appendln(b, v...)
 	})
 }
 
@@ -180,11 +200,11 @@ func Errorf(format string, v ...any) {
 	})
 }
 
-// Errorln calls Output to print to the standard logger.
+// Errorj calls Output to print to the standard logger.
 // Arguments are handled in the manner of [fmt.Println].
-func Errorln(v ...any) {
+func Errorj(j map[string]any) {
 	std.log(2, ERROR, func(b []byte) []byte {
-		return fmt.Appendln(b, v...)
+		return appendj(b, j)
 	})
 }
 
@@ -206,11 +226,11 @@ func Panicf(format string, v ...any) {
 	panic(s)
 }
 
-// Panicln is equivalent to [Println] followed by a call to panic().
-func Panicln(v ...any) {
-	s := fmt.Sprintln(v...)
+// Panicj is equivalent to [Println] followed by a call to panic().
+func Panicj(j map[string]any) {
+	s := stringify(j)
 	std.log(2, PANIC, func(b []byte) []byte {
-		return append(b, s...)
+		return fmt.Appendln(b, s)
 	})
 	panic(s)
 }
@@ -231,21 +251,21 @@ func Fatalf(format string, v ...any) {
 	OsExiter(1)
 }
 
-// Fatalln is equivalent to [Println] followed by a call to [os.Exit](1).
-func Fatalln(v ...any) {
+// Fatalj is equivalent to [Println] followed by a call to [os.Exit](1).
+func Fatalj(j map[string]any) {
 	std.log(2, FATAL, func(b []byte) []byte {
-		return fmt.Appendln(b, v...)
+		return appendj(b, j)
 	})
 	OsExiter(1)
 }
 
-// Output writes the output for a logging event. The string s contains
+// Write writes the output for a logging event. The string s contains
 // the text to print after the prefix specified by the flags of the
 // Logger. A newline is appended if the last character of s is not
 // already a newline. Calldepth is the count of the number of
 // frames to skip when computing the file name and line number
 // if [Llongfile] or [Lshortfile] is set; a value of 1 will print the details
 // for the caller of Output.
-func Output(calldepth int, level Level, s string) error {
-	return std.Output(calldepth+1, level, s) // +1 for this frame.
+func Write(calldepth int, level Level, s string) error {
+	return std.Write(calldepth+1, level, s) // +1 for this frame.
 }
