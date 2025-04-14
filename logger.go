@@ -53,11 +53,17 @@ const (
 	FATAL
 )
 
+func (l Level) Int() int {
+	return int(l)
+}
+
 // String returns an all-caps ASCII representation of the log level.
 func (l Level) String() string {
 	// Printing levels in all-caps is common enough that we should export this
 	// functionality.
 	switch l {
+	case 0:
+		return "VERBOSE"
 	case DEBUG:
 		return "DEBUG"
 	case INFO:
@@ -193,45 +199,61 @@ func itoa(buf *[]byte, i int, wid int) {
 	*buf = append(*buf, b[bp:]...)
 }
 
+func writeBlank(buf *[]byte) {
+	if len(*buf) > 0 {
+		*buf = append(*buf, ' ')
+	}
+}
+
 // formatHeader writes log header to buf in following order:
 //   - l.prefix (if it's not blank and Lmsgprefix is unset),
 //   - date and/or time (if corresponding flags are provided),
 //   - file and line number (if corresponding flags are provided),
 //   - l.prefix (if it's not blank and Lmsgprefix is set).
 func formatHeader(buf *[]byte, t time.Time, prefix string, flag int, level Level, file string, line int) {
-	if flag&Lmsgprefix == 0 {
+	if flag&Lmsgprefix == 0 && len(prefix) > 0 {
+		if flag&Llevel != 0 {
+			writeBlank(buf)
+			*buf = append(*buf, level.String()[0], '/')
+		}
 		*buf = append(*buf, prefix...)
+	} else if flag&Llevel != 0 {
+		writeBlank(buf)
+		*buf = append(*buf, level.String()[0], ' ')
 	}
-	if flag&Llevel != 0 && level != 0 {
-		*buf = append(*buf, level.String()...)
-	}
+
 	if flag&(Ldate|Ltime|Lmicroseconds) != 0 {
 		if flag&LUTC != 0 {
 			t = t.UTC()
 		}
+		var tmp []byte // TODO 使用 pool 优化
 		if flag&Ldate != 0 {
 			year, month, day := t.Date()
-			itoa(buf, year, 4)
-			*buf = append(*buf, '/')
-			itoa(buf, int(month), 2)
-			*buf = append(*buf, '/')
-			itoa(buf, day, 2)
-			*buf = append(*buf, ' ')
+			itoa(&tmp, year, 4)
+			tmp = append(tmp, '/')
+			itoa(&tmp, int(month), 2)
+			tmp = append(tmp, '/')
+			itoa(&tmp, day, 2)
+			tmp = append(tmp, ' ')
 		}
 		if flag&(Ltime|Lmicroseconds) != 0 {
 			hour, min, sec := t.Clock()
-			itoa(buf, hour, 2)
-			*buf = append(*buf, ':')
-			itoa(buf, min, 2)
-			*buf = append(*buf, ':')
-			itoa(buf, sec, 2)
+			itoa(&tmp, hour, 2)
+			tmp = append(tmp, ':')
+			itoa(&tmp, min, 2)
+			tmp = append(tmp, ':')
+			itoa(&tmp, sec, 2)
 			if flag&Lmicroseconds != 0 {
-				*buf = append(*buf, '.')
-				itoa(buf, t.Nanosecond()/1e3, 6)
+				tmp = append(tmp, '.')
+				itoa(&tmp, t.Nanosecond()/1e3, 6)
 			}
-			*buf = append(*buf, ' ')
+		}
+		if len(tmp) > 0 {
+			writeBlank(buf)
+			*buf = append(*buf, tmp...)
 		}
 	}
+
 	if flag&(Lshortfile|Llongfile) != 0 {
 		if flag&Lshortfile != 0 {
 			short := file
@@ -243,12 +265,19 @@ func formatHeader(buf *[]byte, t time.Time, prefix string, flag int, level Level
 			}
 			file = short
 		}
-		*buf = append(*buf, file...)
-		*buf = append(*buf, ':')
-		itoa(buf, line, -1)
-		*buf = append(*buf, ": "...)
+		var tmp []byte // TODO 使用 pool 优化
+		tmp = append(tmp, file...)
+		tmp = append(tmp, ':')
+		itoa(&tmp, line, -1)
+		tmp = append(tmp, ':')
+		if len(tmp) > 0 {
+			writeBlank(buf)
+			*buf = append(*buf, tmp...)
+		}
 	}
+
 	if flag&Lmsgprefix != 0 {
+		writeBlank(buf)
 		*buf = append(*buf, prefix...)
 	}
 }
@@ -315,6 +344,7 @@ func (l *Logger) write(calldepth int, level Level, appendOutput func([]byte) []b
 	buf := getBuffer()
 	defer putBuffer(buf)
 	formatHeader(buf, now, prefix, flag, level, file, line)
+	writeBlank(buf)
 	*buf = appendOutput(*buf)
 	if len(*buf) == 0 || (*buf)[len(*buf)-1] != '\n' {
 		*buf = append(*buf, '\n')
@@ -340,7 +370,7 @@ func stacktrace(buf *[]byte, skip int) {
 	var lines [][]byte
 	var lastFilename string
 	// for i := skip + 1; ; i++ { // Skip over frames
-	for i := skip; ; i++ { // Skip over frames
+	for i := skip + 1; ; i++ { // Skip over frames
 		programCounter, filename, lineNumber, ok := runtime.Caller(i)
 		// If we can't retrieve the information break - basically we're into go internals at this point.
 		if !ok {
@@ -397,7 +427,7 @@ func source(lines [][]byte, n int) []byte {
 }
 
 func (l *Logger) log(calldepth int, level Level, appendOutput func([]byte) []byte) {
-	err := l.write(calldepth, level, appendOutput)
+	err := l.write(calldepth+1, level, appendOutput)
 	if err != nil {
 		FallbackErrorf("unable to write log message: %v", err)
 	}
