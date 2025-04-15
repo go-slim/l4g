@@ -8,21 +8,21 @@ import (
 )
 
 var (
-	std      *Logger
+	std      *defaultLogger
 	OsExiter func(code int)
 
 	pollMu sync.Mutex
-	poll   map[string]*Logger
+	poll   map[string]Logger
 
-	NewLoggerFunc func(name string) *Logger
+	NewLoggerFunc func(name string) Logger
 )
 
 const newline = "\n"
 
 func init() {
-	std = New(os.Stderr)
-	poll = make(map[string]*Logger)
-	NewLoggerFunc = func(name string) *Logger {
+	std = New(os.Stderr).(*defaultLogger)
+	poll = make(map[string]Logger)
+	NewLoggerFunc = func(name string) Logger {
 		return New(os.Stderr, WithPrefix(name))
 	}
 }
@@ -32,7 +32,7 @@ func FallbackErrorf(format string, args ...any) {
 	_, _ = fmt.Fprintf(os.Stderr, format+"\n", args...)
 }
 
-func Channel(name string) *Logger {
+func Channel(name string) Logger {
 	pollMu.Lock()
 	defer pollMu.Unlock()
 	logger := poll[name]
@@ -44,7 +44,7 @@ func Channel(name string) *Logger {
 }
 
 // Default returns the default logger used by the package-level output functions.
-func Default() *Logger { return std }
+func Default() Logger { return std }
 
 // Output returns the output destination for the standard logger.
 func Output() io.Writer {
@@ -83,15 +83,15 @@ func GetLevel() Level {
 }
 
 func SetLevel(level Level) {
-	std.SetLevel(int(level))
+	std.SetLevel(level)
 }
 
 func StacktraceLevel() Level {
-	return Level(std.StacktraceLevel())
+	return std.StacktraceLevel()
 }
 
 func SetStacktraceLevel(level Level) {
-	std.SetStacktraceLevel(int(level))
+	std.SetStacktraceLevel(level)
 }
 
 func Print(i ...any) {
