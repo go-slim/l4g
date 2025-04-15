@@ -1,3 +1,3 @@
-module zestack.dev/l4g
+module go-slim.dev/l4g
 
 go 1.24.0
