@@ -66,6 +66,8 @@ func New(out io.Writer, options ...Option) Logger {
 	l.SetOutput(out)
 	l.SetPrefix("")
 	l.SetFlags(LstdFlags)
+	l.SetLevel(INFO)
+	l.SetStacktraceLevel(PANIC)
 	for _, option := range options {
 		option(l)
 	}
