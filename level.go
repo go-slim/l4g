@@ -1,7 +1,6 @@
 package l4g
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -17,13 +16,13 @@ type Level int
 // but we picked them to satisfy three constraints.
 // Any system can map them to another numbering scheme if it wishes.
 const (
-	VERBOSE Level = iota*4 - 8
-	DEBUG
-	INFO
-	WARN
-	ERROR
-	PANIC
-	FATAL
+	LevelTrace Level = iota
+	LevelDebug
+	LevelInfo
+	LevelWarn
+	LevelError
+	LevelPanic
+	LevelFatal
 )
 
 // Int returns the integer value of the level.
@@ -31,37 +30,29 @@ func (l Level) Int() int {
 	return int(l)
 }
 
-// String returns a name for the level.
-// If the level has a name, then that name
-// in uppercase is returned.
-// If the level is between named values, then
-// an integer is appended to the uppercased name.
-// Examples:
-//
-//	LevelWarn.String() => "WARN"
-//	(LevelInfo+2).String() => "INFO+2"
+// Real returns a real level of the level.
+func (l Level) Real() Level {
+	return max(min(l, LevelFatal), LevelTrace)
+}
+
+// String returns a name in lowercase for the level.
 func (l Level) String() string {
-	str := func(base string, val Level) string {
-		if val == 0 {
-			return base
-		}
-		return fmt.Sprintf("%s%+d", base, val)
-	}
-	switch {
-	case l < VERBOSE:
-		return str("VERBOSE", l-VERBOSE)
-	case l < DEBUG:
-		return str("DEBUG", l-DEBUG)
-	case l < INFO:
-		return str("INFO", l-INFO)
-	case l < WARN:
-		return str("WARN", l-WARN)
-	case l < ERROR:
-		return str("ERROR", l-ERROR)
-	case l < PANIC:
-		return str("PANIC", l-PANIC)
+	switch l {
+	case LevelDebug:
+		return "debug"
+	case LevelInfo:
+		return "info"
+	case LevelWarn:
+		return "warn"
+	case LevelError:
+		return "error"
+	case LevelPanic:
+		return "panic"
 	default:
-		return str("FATAL", l-FATAL)
+		if l <= LevelTrace {
+			return "trace"
+		}
+		return "fatal"
 	}
 }
 
@@ -78,7 +69,7 @@ func (l Level) MarshalJSON() ([]byte, error) {
 // It accepts any string produced by [Level.MarshalJSON],
 // ignoring case.
 // It also accepts numeric offsets that would result in a different string on
-// output. For example, "Error-8" would marshal as "INFO".
+// output. For example, "Error-8" would marshal as "LevelInfo".
 func (l *Level) UnmarshalJSON(data []byte) error {
 	s, err := strconv.Unquote(string(data))
 	if err != nil {
@@ -103,46 +94,30 @@ func (l Level) MarshalText() ([]byte, error) {
 // It accepts any string produced by [Level.MarshalText],
 // ignoring case.
 // It also accepts numeric offsets that would result in a different string on
-// output. For example, "Error-8" would marshal as "INFO".
+// output. For example, "Error-8" would marshal as "LevelInfo".
 func (l *Level) UnmarshalText(data []byte) error {
 	return l.parse(string(data))
 }
 
 func (l *Level) parse(s string) (err error) {
-	defer func() {
-		if err != nil {
-			err = fmt.Errorf("slog: level string %q: %w", s, err)
-		}
-	}()
-
-	name := s
-	offset := 0
-	if i := strings.IndexAny(s, "+-"); i >= 0 {
-		name = s[:i]
-		offset, err = strconv.Atoi(s[i:])
-		if err != nil {
-			return err
-		}
-	}
-	switch strings.ToUpper(name) {
-	case "VERBOSE":
-		*l = VERBOSE
-	case "DEBUG":
-		*l = DEBUG
-	case "INFO":
-		*l = INFO
-	case "WARN":
-		*l = WARN
-	case "ERROR":
-		*l = ERROR
-	case "PANIC":
-		*l = PANIC
-	case "FATAL":
-		*l = FATAL
+	switch strings.ToLower(s) {
+	case "trace":
+		*l = LevelTrace
+	case "debug":
+		*l = LevelDebug
+	case "info":
+		*l = LevelInfo
+	case "warn":
+		*l = LevelWarn
+	case "error":
+		*l = LevelError
+	case "panic":
+		*l = LevelPanic
+	case "fatal":
+		*l = LevelFatal
 	default:
-		return errors.New("unknown name")
+		return fmt.Errorf("l4g: level string %q: unknown name", s)
 	}
-	*l += Level(offset)
 	return nil
 }
 
@@ -157,6 +132,20 @@ func (l Level) Level() Level { return l }
 // The zero LevelVar corresponds to [LevelInfo].
 type LevelVar struct {
 	val atomic.Int64
+}
+
+func NewLevelVar(lvl Leveler) *LevelVar {
+	if l, ok := lvl.(*LevelVar); ok {
+		return l
+	}
+	l := &LevelVar{}
+	l.Set(lvl.Level())
+	return l
+}
+
+// Int returns the integer representation of the level.
+func (v *LevelVar) Int() int {
+	return v.Level().Int()
 }
 
 // Level returns v's level.
