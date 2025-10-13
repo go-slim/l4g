@@ -1,23 +1,23 @@
 package l4g
 
 import (
-	"encoding/json"
-	"fmt"
 	"io"
-	"runtime"
-	"strings"
 	"sync"
 	"sync/atomic"
-	"unsafe"
-
-	"github.com/MatusOllah/stripansi"
 )
 
+// OutputVar is an atomically updatable io.Writer variable.
+// It is safe for concurrent use by multiple goroutines.
+// It optimizes for the case where the writer is nil or io.Discard
+// by storing a ready flag to avoid unnecessary Write operations.
 type OutputVar struct {
-	ready  atomic.Bool
-	writer atomic.Value
+	ready  atomic.Bool  // true if writer is not nil and not io.Discard
+	writer atomic.Value // holds the io.Writer
 }
 
+// NewOutputVar creates a new OutputVar from an io.Writer.
+// If the provided writer is already an *OutputVar, it is returned as-is.
+// Otherwise, a new OutputVar is created wrapping the writer.
 func NewOutputVar(w io.Writer) *OutputVar {
 	if o, ok := w.(*OutputVar); ok {
 		return o
@@ -27,15 +27,21 @@ func NewOutputVar(w io.Writer) *OutputVar {
 	return v
 }
 
+// Set atomically sets the output writer.
+// If w is nil or io.Discard, the OutputVar is marked as disabled for optimization.
 func (v *OutputVar) Set(w io.Writer) {
 	v.ready.Store(w != nil && w != io.Discard)
 	v.writer.Store(w)
 }
 
+// Discard reports whether writes to this OutputVar should be discarded.
+// It returns true if the writer is nil, io.Discard, or not set.
 func (v *OutputVar) Discard() bool {
 	return !v.ready.Load()
 }
 
+// Output returns the current io.Writer.
+// If the writer is nil or marked for discard, it returns io.Discard.
 func (v *OutputVar) Output() io.Writer {
 	if v.Discard() {
 		return io.Discard
@@ -43,100 +49,52 @@ func (v *OutputVar) Output() io.Writer {
 	return v.writer.Load().(io.Writer)
 }
 
+// Write implements io.Writer by writing to the current output writer.
 func (v *OutputVar) Write(p []byte) (int, error) {
 	return v.Output().Write(p)
 }
 
-func stringify(j map[string]any) string {
-	bts, _ := json.Marshal(j)
-	return *(*string)(unsafe.Pointer(&bts))
-}
+// buffer is a byte slice used for building log output.
+// It implements efficient Write, WriteByte, and WriteString methods.
+type buffer []byte
 
-// Having an initial size gives a dramatic speedup.
-var rwPool = sync.Pool{
+// bufPool is a sync.Pool for reusing buffer instances to reduce allocations.
+// Buffers are initially allocated with 1KB capacity.
+var bufPool = sync.Pool{
 	New: func() any {
-		return &recordWriter{}
+		b := make(buffer, 0, 1024)
+		return &b
 	},
 }
 
-func newRecordWriter(l *SimpleHandler) *recordWriter {
-	rw := rwPool.Get().(*recordWriter)
-	rw.replace = l.options.ReplacePart
-	return rw
+// newBuffer gets a buffer from the pool.
+func newBuffer() *buffer {
+	return bufPool.Get().(*buffer)
 }
 
-type recordWriter struct {
-	replace func(PartKind, *Record, bool) (string, bool)
-	buf     []byte
-	sep     bool
-}
-
-func (w *recordWriter) Reset() []byte {
-	defer rwPool.Put(w)
-	buf := w.buf[:]
-	w.replace = nil
-	w.buf = w.buf[:0]
-	w.sep = false
-	return buf
-}
-
-func (w *recordWriter) Write(kind PartKind, r *Record, last bool) {
-	if w.replace != nil {
-		s, ok := w.replace(kind, r, last)
-		if ok {
-			w.write(s)
-			return
-		}
-	}
-
-	switch kind {
-	case PartLevel:
-		w.write("%-5s", r.Level.String())
-	case PartTime:
-		w.write(r.Time.Format("15:04:05.000"))
-	case PartMessage:
-		lines := strings.Split(r.Message, "\n")
-		for i, line := range lines {
-			if i > 0 {
-				w.write("    ")
-			}
-			w.write(line)
-			w.write("\n")
-		}
-	case PartLocation:
-		fs := runtime.CallersFrames([]uintptr{r.PC})
-		f, _ := fs.Next()
-		w.write(" -> %s\n", f.Function)
-		w.write(" ->   %s:%d\n", f.File, f.Line)
-	case PartStacktrace:
-		fs := runtime.CallersFrames(r.Frames)
-		for {
-			f, more := fs.Next()
-			w.write("    %s\n", f.Function)
-			w.write("      %s:%d\n", f.File, f.Line)
-			if !more {
-				break
-			}
-		}
+// Free returns the buffer to the pool for reuse if it's not too large.
+// Buffers larger than 16KB are discarded to avoid keeping large allocations.
+func (b *buffer) Free() {
+	// To reduce peak allocation, return only
+	// smaller buffers to the pool.
+	const maxBufferSize = 16 << 10
+	if cap(*b) <= maxBufferSize {
+		*b = (*b)[:0]
+		bufPool.Put(b)
 	}
 }
 
-func (w *recordWriter) write(s string, args ...any) {
-	if len(args) > 0 {
-		s = fmt.Sprintf(s, args...)
-	}
-	raw := stripansi.String(s) // removes ANSI escape sequences
-	if len(raw) == 0 {
-		return
-	}
-	if w.sep {
-		w.buf = append(w.buf, ' ')
-	}
-	w.buf = append(w.buf, s...)
-	w.sep = raw[len(raw)-1] != '\n'
+// Write appends bytes to the buffer.
+func (b *buffer) Write(bytes []byte) {
+	*b = append(*b, bytes...)
 }
 
-func (w *recordWriter) FlushTo(out io.Writer) error {
-	_, err := out.Write(w.Reset())
-	return err
+// WriteByte appends a single byte to the buffer.
+func (b *buffer) WriteByte(char byte) {
+	*b = append(*b, char)
+}
+
+// WriteString appends a string to the buffer.
+func (b *buffer) WriteString(str string) {
+	*b = append(*b, str...)
 }

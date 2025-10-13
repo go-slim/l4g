@@ -1,73 +1,44 @@
+// Package l4g provides a high-performance, structured logging library for Go
+// that is compatible with the standard log/slog package. It offers fast logging
+// with zero allocations for disabled log levels, buffer pooling, and multiple
+// output formats including text, formatted strings, and structured JSON-like logging.
 package l4g
 
 import (
 	"fmt"
 	"io"
-	"runtime"
 	"time"
 )
 
-// Logger defines the logging interface.
-type Logger interface {
-	Output() io.Writer
-	SetOutput(w io.Writer)
-	Level() Level
-	SetLevel(lvl Level)
-	StacktraceLevel() Level
-	SetStacktraceLevel(lvl Level)
-	Enabled(lvl Level) bool
-	StacktraceEnabled(lvl Level) bool
-	Trace(i ...any)
-	Tracef(format string, args ...any)
-	Tracej(j map[string]any)
-	Debug(i ...any)
-	Debugf(format string, args ...any)
-	Debugj(j map[string]any)
-	Info(i ...any)
-	Infof(format string, args ...any)
-	Infoj(j map[string]any)
-	Warn(i ...any)
-	Warnf(format string, args ...any)
-	Warnj(j map[string]any)
-	Error(i ...any)
-	Errorf(format string, args ...any)
-	Errorj(j map[string]any)
-	Panic(i ...any)
-	Panicj(j map[string]any)
-	Panicf(format string, args ...any)
-	Fatal(i ...any)
-	Fatalj(j map[string]any)
-	Fatalf(format string, args ...any)
-}
-
+// Options holds configuration options for creating a new Logger.
 type Options struct {
-	Level           Level
-	StacktraceLevel Level
-	NewHandlerFunc  func(opts HandlerOptions) Handler
-	Handler         Handler
-	ReplacePart     func(kind PartKind, r *Record, last bool) (string, bool)
+	Level          Level                                         // Minimum log level to output
+	NewHandlerFunc func(opts HandlerOptions) Handler             // Factory function to create a handler
+	Handler        Handler                                       // Custom handler to use (overrides NewHandlerFunc)
+	ReplacePart    func(kind PartKind, r *Record) (string, bool) // Function to customize log output parts
 }
 
+// Option is a functional option for configuring a Logger.
 type Option func(*Options)
 
+// WithLevel returns an Option that sets the minimum log level.
+// Only log messages at or above this level will be output.
 func WithLevel(lvl Level) Option {
 	return func(opts *Options) {
 		opts.Level = lvl
 	}
 }
 
-func WithStacktraceLevel(lvl Level) Option {
-	return func(opts *Options) {
-		opts.StacktraceLevel = lvl
-	}
-}
-
+// WithNewHandlerFunc returns an Option that sets a custom handler factory function.
+// The factory function will be called to create the handler when the logger is initialized.
 func WithNewHandlerFunc(f func(opts HandlerOptions) Handler) Option {
 	return func(opts *Options) {
 		opts.NewHandlerFunc = f
 	}
 }
 
+// WithHandler returns an Option that sets a custom handler.
+// This overrides the default handler and any handler factory function.
 func WithHandler(h Handler) Option {
 	return func(opts *Options) {
 		opts.NewHandlerFunc = func(_ HandlerOptions) Handler {
@@ -76,232 +47,273 @@ func WithHandler(h Handler) Option {
 	}
 }
 
-func WithReplacePart(f func(PartKind, *Record, bool) (string, bool)) Option {
+// WithReplacePart returns an Option that sets a function to customize parts of the log output.
+// The function can replace specific parts like timestamps, levels, or messages in the output format.
+func WithReplacePart(f func(PartKind, *Record) (string, bool)) Option {
 	return func(opts *Options) {
 		opts.ReplacePart = f
 	}
 }
 
-func New(out io.Writer, options ...Option) Logger {
+// New creates a new Logger that writes to the given io.Writer.
+// By default, it uses LevelInfo as the minimum log level and SimpleHandler for output formatting.
+// The behavior can be customized using Option functions.
+func New(out io.Writer, options ...Option) *Logger {
 	opts := Options{
-		Level:           LevelInfo,
-		StacktraceLevel: LevelPanic,
-		NewHandlerFunc:  NewSimpleHandler,
+		Level:          LevelInfo,
+		NewHandlerFunc: NewSimpleHandler,
 	}
 	for _, option := range options {
 		option(&opts)
 	}
-	l := &defaultLogger{
-		level:           NewLevelVar(opts.Level),
-		stacktraceLevel: NewLevelVar(opts.StacktraceLevel),
-		output:          NewOutputVar(out),
-		handler:         opts.Handler,
+	l := &Logger{
+		level:   NewLevelVar(opts.Level),
+		output:  NewOutputVar(out),
+		handler: opts.Handler,
 	}
 	if opts.Handler == nil {
 		l.handler = opts.NewHandlerFunc(HandlerOptions{
-			Level:           l.level,
-			StacktraceLevel: l.stacktraceLevel,
-			Output:          l.output,
-			ReplacePart:     opts.ReplacePart,
+			Level:  l.level,
+			Output: l.output,
 		})
 	}
 	return l
 }
 
-type defaultLogger struct {
-	level           *LevelVar
-	stacktraceLevel *LevelVar
-	output          *OutputVar
-	handler         Handler
+// Logger represents a logger instance that outputs log messages through a handler.
+// It is safe for concurrent use by multiple goroutines.
+type Logger struct {
+	level   *LevelVar  // Minimum log level, can be changed dynamically
+	output  *OutputVar // Output destination, can be changed dynamically
+	handler Handler    // Handler for processing and formatting log records
 }
 
-func (l *defaultLogger) Output() io.Writer {
+// Output returns the current output destination for the logger.
+func (l *Logger) Output() io.Writer {
 	return l.output.Output()
 }
 
-func (l *defaultLogger) SetOutput(w io.Writer) {
+// SetOutput sets the output destination for the logger.
+// This can be called at runtime to redirect log output.
+func (l *Logger) SetOutput(w io.Writer) {
 	l.output.Set(w)
 }
 
-func (l *defaultLogger) Level() Level {
+// Level returns the current minimum log level of the logger.
+func (l *Logger) Level() Level {
 	return l.level.Level()
 }
 
-func (l *defaultLogger) SetLevel(lvl Level) {
+// SetLevel sets the minimum log level of the logger.
+// Log messages below this level will not be output.
+func (l *Logger) SetLevel(lvl Level) {
 	l.level.Set(lvl)
 }
 
-func (l *defaultLogger) StacktraceLevel() Level {
-	return l.stacktraceLevel.Level()
-}
-
-func (l *defaultLogger) SetStacktraceLevel(lvl Level) {
-	l.stacktraceLevel.Set(lvl)
-}
-
-func (l *defaultLogger) Enabled(level Level) bool {
+// Enabled reports whether the logger is enabled for the given log level.
+// It returns true if a log message at the given level would be output.
+func (l *Logger) Enabled(level Level) bool {
 	return l.handler.Enabled(level)
 }
 
-func (l *defaultLogger) StacktraceEnabled(level Level) bool {
-	return l.handler.StacktraceEnabled(level)
+// Log outputs a log record at the specified level with the given message and optional attributes.
+// args can be key-value pairs (string, any, string, any, ...) or Attr values.
+// If the log level is disabled, this function returns immediately without allocating.
+func (l *Logger) Log(level Leveler, msg string, args ...any) {
+	l.log(level.Level(), msg, args)
 }
 
-// Write writes the output for a logging event. The string s contains
-// the text to print after the prefix specified by the flags of the
-// Logger. A newline is appended if the last character of s is not
-// already a newline. Calldepth is used to recover the PC and is
-// provided for generality, although at the moment on all pre-defined
-// paths it will be 2.
-func (l *defaultLogger) Write(calldepth int, level Leveler, s string) error {
-	calldepth++ // +1 for this frame.
-	return l.write(calldepth, level.Level(), func() string { return s })
+// Logf outputs a formatted log record at the specified level.
+// It supports both [fmt.Printf]-style formatting and optional structured attributes.
+// args can mix format arguments with Attr values for structured logging.
+func (l *Logger) Logf(level Level, format string, args ...any) {
+	l.logf(level, format, args)
 }
 
-// write can take either a calldepth or a pc to get source line information.
-// It uses the pc if it is non-zero.
-func (l *defaultLogger) write(calldepth int, level Level, msg func() string) error {
-	if l.output.Discard() || !l.Enabled(level) {
-		return nil
+// Logj outputs a log record at the specified level with structured key-value pairs from a map.
+// The map is converted to structured attributes in the log output.
+func (l *Logger) Logj(level Level, j map[string]any) {
+	l.logj(level, j)
+}
+
+// Trace logs a message at trace level with optional structured attributes.
+// args can be key-value pairs (string, any, string, any, ...) or Attr values.
+func (l *Logger) Trace(msg string, args ...any) {
+	l.Log(LevelTrace, msg, args...)
+}
+
+// Tracef logs a formatted message at trace level.
+// It supports [fmt.Printf]-style formatting and optional structured attributes.
+func (l *Logger) Tracef(format string, args ...any) {
+	l.logf(LevelTrace, format, args)
+}
+
+// Tracej logs a message at trace level with structured key-value pairs from a map.
+func (l *Logger) Tracej(j map[string]any) {
+	l.logj(LevelTrace, j)
+}
+
+// Debug logs a message at debug level with optional structured attributes.
+// args can be key-value pairs (string, any, string, any, ...) or Attr values.
+func (l *Logger) Debug(msg string, args ...any) {
+	l.log(LevelDebug, msg, args)
+}
+
+// Debugf logs a formatted message at debug level.
+// It supports [fmt.Printf]-style formatting and optional structured attributes.
+func (l *Logger) Debugf(format string, args ...any) {
+	l.logf(LevelDebug, format, args)
+}
+
+// Debugj logs a message at debug level with structured key-value pairs from a map.
+func (l *Logger) Debugj(j map[string]any) {
+	l.logj(LevelDebug, j)
+}
+
+// Info logs a message at info level with optional structured attributes.
+// args can be key-value pairs (string, any, string, any, ...) or Attr values.
+func (l *Logger) Info(msg string, args ...any) {
+	l.log(LevelInfo, msg, args)
+}
+
+// Infof logs a formatted message at info level.
+// It supports [fmt.Printf]-style formatting and optional structured attributes.
+func (l *Logger) Infof(format string, args ...any) {
+	l.logf(LevelInfo, format, args)
+}
+
+// Infoj logs a message at info level with structured key-value pairs from a map.
+func (l *Logger) Infoj(j map[string]any) {
+	l.logj(LevelInfo, j)
+}
+
+// Warn logs a message at warn level with optional structured attributes.
+// args can be key-value pairs (string, any, string, any, ...) or Attr values.
+func (l *Logger) Warn(msg string, args ...any) {
+	l.log(LevelWarn, msg, args)
+}
+
+// Warnf logs a formatted message at warn level.
+// It supports [fmt.Printf]-style formatting and optional structured attributes.
+func (l *Logger) Warnf(format string, args ...any) {
+	l.logf(LevelWarn, format, args)
+}
+
+// Warnj logs a message at warn level with structured key-value pairs from a map.
+func (l *Logger) Warnj(j map[string]any) {
+	l.logj(LevelWarn, j)
+}
+
+// Error logs a message at error level with optional structured attributes.
+// args can be key-value pairs (string, any, string, any, ...) or Attr values.
+func (l *Logger) Error(msg string, args ...any) {
+	l.log(LevelError, msg, args)
+}
+
+// Errorf logs a formatted message at error level.
+// It supports [fmt.Printf]-style formatting and optional structured attributes.
+func (l *Logger) Errorf(format string, args ...any) {
+	l.logf(LevelError, format, args)
+}
+
+// Errorj logs a message at error level with structured key-value pairs from a map.
+func (l *Logger) Errorj(j map[string]any) {
+	l.logj(LevelError, j)
+}
+
+// Panic logs a message at panic level with optional structured attributes, then panics.
+// args can be key-value pairs (string, any, string, any, ...) or Attr values.
+func (l *Logger) Panic(msg string, args ...any) {
+	l.log(LevelPanic, msg, args)
+	panic(msg)
+}
+
+// Panicf logs a formatted message at panic level, then panics.
+// It supports [fmt.Printf]-style formatting and optional structured attributes.
+func (l *Logger) Panicf(format string, args ...any) {
+	l.logf(LevelPanic, format, args)
+
+	_, anies := splitAttrs(args)
+	msg := format
+	if len(anies) > 0 {
+		msg = fmt.Sprintf(format, anies...)
 	}
-	var pcs [32]uintptr
-	runtime.Callers(calldepth, pcs[:])
-	r := Record{time.Now(), msg(), level, pcs[0], pcs[1:]}
-	return l.handler.Handle(r, l.StacktraceEnabled(level))
+	panic(msg)
 }
 
-func (l *defaultLogger) log(calldepth int, level Level, appendOutput func() string) {
-	err := l.write(calldepth+1, level, appendOutput)
-	if err != nil {
+// Panicj logs a message at panic level with structured key-value pairs from a map, then panics.
+func (l *Logger) Panicj(j map[string]any) {
+	l.logj(LevelPanic, j)
+	panic(j)
+}
+
+// Fatal logs a message at fatal level with optional structured attributes, then calls os.Exit(1).
+// args can be key-value pairs (string, any, string, any, ...) or Attr values.
+func (l *Logger) Fatal(msg string, args ...any) {
+	l.log(LevelFatal, msg, args)
+	OsExiter(1)
+}
+
+// Fatalf logs a formatted message at fatal level, then calls os.Exit(1).
+// It supports [fmt.Printf]-style formatting and optional structured attributes.
+func (l *Logger) Fatalf(format string, args ...any) {
+	l.logf(LevelFatal, format, args)
+	OsExiter(1)
+}
+
+// Fatalj logs a message at fatal level with structured key-value pairs from a map, then calls os.Exit(1).
+func (l *Logger) Fatalj(j map[string]any) {
+	l.logj(LevelFatal, j)
+	OsExiter(1)
+}
+
+// log is the internal implementation for logging with optional structured attributes.
+// It returns early without allocating if the output is disabled or the level is not enabled.
+func (l *Logger) log(level Level, msg string, args []any) {
+	if l.output.Discard() || !l.Enabled(level) {
+		return
+	}
+	r := NewRecord(time.Now(), level, msg)
+	if len(args) > 0 {
+		r.AddAttrs(argsToAttrSlice(args)...)
+	}
+	if err := l.handler.Handle(r); err != nil {
 		FallbackErrorf("unable to write log message: %v", err)
 	}
 }
 
-// Trace calls l.Write to print to the logger.
-// Arguments are handled in the manner of [fmt.Println].
-func (l *defaultLogger) Trace(v ...any) {
-	l.log(2, LevelTrace, func() string { return fmt.Sprint(v...) })
+// logf is the internal implementation for formatted logging with optional structured attributes.
+// It returns early without allocating if the output is disabled or the level is not enabled.
+// args are split into Attr values for structured logging and regular values for fmt.Sprintf formatting.
+func (l *Logger) logf(level Level, format string, args []any) {
+	if l.output.Discard() || !l.Enabled(level) {
+		return
+	}
+	attrs, anies := splitAttrs(args)
+	msg := format
+	if len(anies) > 0 {
+		msg = fmt.Sprintf(format, anies...)
+	}
+	r := NewRecord(time.Now(), level, msg)
+	if len(attrs) > 0 {
+		r.AddAttrs(attrs...)
+	}
+	if err := l.handler.Handle(r); err != nil {
+		FallbackErrorf("unable to write log message: %v", err)
+	}
 }
 
-// Tracef calls l.Write to print to the logger.
-// Arguments are handled in the manner of [fmt.Printf].
-func (l *defaultLogger) Tracef(format string, args ...any) {
-	l.log(2, LevelTrace, func() string { return fmt.Sprintf(format, args...) })
-}
-
-// Tracej calls l.Write to print to the logger.
-// Arguments are handled in the manner of [fmt.Printf] an [json.Marshal].
-func (l *defaultLogger) Tracej(j map[string]any) {
-	l.log(2, LevelTrace, func() string { return stringify(j) })
-}
-
-// Debug calls l.Write to print to the logger.
-// Arguments are handled in the manner of [fmt.Print].
-func (l *defaultLogger) Debug(v ...any) {
-	l.log(2, LevelDebug, func() string { return fmt.Sprint(v...) })
-}
-
-// Debugf calls l.Write to print to the logger.
-// Arguments are handled in the manner of [fmt.Printf].
-func (l *defaultLogger) Debugf(format string, v ...any) {
-	l.log(2, LevelDebug, func() string { return fmt.Sprintf(format, v...) })
-}
-
-// Debugj calls l.Write to print to the logger.
-// Arguments are handled in the manner of [fmt.Println].
-func (l *defaultLogger) Debugj(j map[string]any) {
-	l.log(2, LevelDebug, func() string { return stringify(j) })
-}
-
-// Info calls l.Write to print to the logger.
-// Arguments are handled in the manner of [fmt.Print].
-func (l *defaultLogger) Info(v ...any) {
-	l.log(2, LevelInfo, func() string { return fmt.Sprint(v...) })
-}
-
-// Infof calls l.Write to print to the logger.
-// Arguments are handled in the manner of [fmt.Printf].
-func (l *defaultLogger) Infof(format string, v ...any) {
-	l.log(2, LevelInfo, func() string { return fmt.Sprintf(format, v...) })
-}
-
-// Infoj calls l.Write to print to the logger.
-// Arguments are handled in the manner of [fmt.Println].
-func (l *defaultLogger) Infoj(j map[string]any) {
-	l.log(2, LevelInfo, func() string { return stringify(j) })
-}
-
-// Warn calls l.Write to print to the logger.
-// Arguments are handled in the manner of [fmt.Print].
-func (l *defaultLogger) Warn(v ...any) {
-	l.log(2, LevelWarn, func() string { return fmt.Sprint(v...) })
-}
-
-// Warnf calls l.Write to print to the logger.
-// Arguments are handled in the manner of [fmt.Printf].
-func (l *defaultLogger) Warnf(format string, v ...any) {
-	l.log(2, LevelWarn, func() string { return fmt.Sprintf(format, v...) })
-}
-
-// Warnj calls l.Write to print to the logger.
-// Arguments are handled in the manner of [fmt.Println].
-func (l *defaultLogger) Warnj(j map[string]any) {
-	l.log(2, LevelWarn, func() string { return stringify(j) })
-}
-
-// Error calls l.Write to print to the logger.
-// Arguments are handled in the manner of [fmt.Print].
-func (l *defaultLogger) Error(v ...any) {
-	l.log(2, LevelError, func() string { return fmt.Sprint(v...) })
-}
-
-// Errorf calls l.Write to print to the logger.
-// Arguments are handled in the manner of [fmt.Printf].
-func (l *defaultLogger) Errorf(format string, v ...any) {
-	l.log(2, LevelError, func() string { return fmt.Sprintf(format, v...) })
-}
-
-// Errorj calls l.Write to print to the logger.
-// Arguments are handled in the manner of [fmt.Println].
-func (l *defaultLogger) Errorj(j map[string]any) {
-	l.log(2, LevelError, func() string { return stringify(j) })
-}
-
-// Panic is equivalent to l.Print() followed by a call to panic().
-func (l *defaultLogger) Panic(v ...any) {
-	s := fmt.Sprint(v...)
-	l.log(2, LevelPanic, func() string { return s })
-	panic(s)
-}
-
-// Panicf is equivalent to l.Printf() followed by a call to panic().
-func (l *defaultLogger) Panicf(format string, v ...any) {
-	s := fmt.Sprintf(format, v...)
-	l.log(2, LevelPanic, func() string { return s })
-	panic(s)
-}
-
-// Panicj is equivalent to l.Println() followed by a call to panic().
-func (l *defaultLogger) Panicj(j map[string]any) {
-	s := stringify(j)
-	l.log(2, LevelPanic, func() string { return s })
-	panic(s)
-}
-
-// Fatal is equivalent to l.Print() followed by a call to [os.Exit](1).
-func (l *defaultLogger) Fatal(v ...any) {
-	l.log(2, LevelFatal, func() string { return fmt.Sprint(v...) })
-	OsExiter(1)
-}
-
-// Fatalf is equivalent to l.Printf() followed by a call to [os.Exit](1).
-func (l *defaultLogger) Fatalf(format string, v ...any) {
-	l.log(2, LevelFatal, func() string { return fmt.Sprintf(format, v...) })
-	OsExiter(1)
-}
-
-// Fatalj is equivalent to l.Println() followed by a call to [os.Exit](1).
-func (l *defaultLogger) Fatalj(j map[string]any) {
-	l.log(2, LevelFatal, func() string { return stringify(j) })
-	OsExiter(1)
+// logj is the internal implementation for logging with structured key-value pairs from a map.
+// It returns early without allocating if the output is disabled or the level is not enabled.
+func (l *Logger) logj(level Level, j map[string]any) {
+	if l.output.Discard() || !l.Enabled(level) {
+		return
+	}
+	r := NewRecord(time.Now(), level, "")
+	for key, value := range j {
+		r.Add(key, value)
+	}
+	if err := l.handler.Handle(r); err != nil {
+		FallbackErrorf("unable to write log message: %v", err)
+	}
 }

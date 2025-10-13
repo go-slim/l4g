@@ -134,6 +134,9 @@ type LevelVar struct {
 	val atomic.Int64
 }
 
+// NewLevelVar creates a new LevelVar from a Leveler.
+// If the provided Leveler is already a *LevelVar, it is returned as-is.
+// Otherwise, a new LevelVar is created with the level from the provided Leveler.
 func NewLevelVar(lvl Leveler) *LevelVar {
 	if l, ok := lvl.(*LevelVar); ok {
 		return l
@@ -158,6 +161,7 @@ func (v *LevelVar) Set(l Level) {
 	v.val.Store(int64(l))
 }
 
+// String returns a string representation of the LevelVar in the form "LevelVar(level)".
 func (v *LevelVar) String() string {
 	return fmt.Sprintf("LevelVar(%s)", v.Level())
 }
