@@ -12,10 +12,13 @@ import (
 
 // Options holds configuration options for creating a new Logger.
 type Options struct {
-	Level          Level                                         // Minimum log level to output
-	NewHandlerFunc func(opts HandlerOptions) Handler             // Factory function to create a handler
-	Handler        Handler                                       // Custom handler to use (overrides NewHandlerFunc)
-	ReplacePart    func(kind PartKind, r *Record) (string, bool) // Function to customize log output parts
+	Level          Level                                    // Minimum log level to output
+	NewHandlerFunc func(opts HandlerOptions) Handler        // Factory function to create a handler
+	Handler        Handler                                  // Custom handler to use (overrides NewHandlerFunc)
+	ReplaceAttr    func(groups []string, attr Attr) Attr    // Function to rewrite attributes before logging
+	TimeFormat     string                                   // Time format string (default: time.StampMilli)
+	Output         io.Writer                                // Output destination (default: os.Stderr)
+	NoColor        bool                                     // Disable color output (default: false)
 }
 
 // Option is a functional option for configuring a Logger.
@@ -47,11 +50,37 @@ func WithHandler(h Handler) Option {
 	}
 }
 
-// WithReplacePart returns an Option that sets a function to customize parts of the log output.
-// The function can replace specific parts like timestamps, levels, or messages in the output format.
-func WithReplacePart(f func(PartKind, *Record) (string, bool)) Option {
+// WithReplaceAttr returns an Option that sets a function to rewrite attributes before logging.
+// The function is called for each non-group attribute and can modify, filter, or replace attributes.
+func WithReplaceAttr(f func(groups []string, attr Attr) Attr) Option {
 	return func(opts *Options) {
-		opts.ReplacePart = f
+		opts.ReplaceAttr = f
+	}
+}
+
+// WithTimeFormat returns an Option that sets the time format string.
+// The format string follows time.Time.Format conventions (e.g., time.StampMilli, time.RFC3339).
+// If not set, defaults to time.StampMilli.
+func WithTimeFormat(format string) Option {
+	return func(opts *Options) {
+		opts.TimeFormat = format
+	}
+}
+
+// WithColor returns an Option that enables or disables colorized output.
+// When enabled (color=true), log output will include ANSI color codes for terminal display.
+// When disabled (color=false), output is plain text without color codes.
+func WithColor(color bool) Option {
+	return func(opts *Options) {
+		opts.NoColor = !color
+	}
+}
+
+// WithOutput returns an Option that sets the output destination.
+// This will be passed to the handler if no custom handler is provided.
+func WithOutput(w io.Writer) Option {
+	return func(opts *Options) {
+		opts.Output = w
 	}
 }
 
@@ -66,15 +95,25 @@ func New(out io.Writer, options ...Option) *Logger {
 	for _, option := range options {
 		option(&opts)
 	}
+
+	// Use Output from options if provided, otherwise use the out parameter
+	output := out
+	if opts.Output != nil {
+		output = opts.Output
+	}
+
 	l := &Logger{
 		level:   NewLevelVar(opts.Level),
-		output:  NewOutputVar(out),
+		output:  NewOutputVar(output),
 		handler: opts.Handler,
 	}
 	if opts.Handler == nil {
 		l.handler = opts.NewHandlerFunc(HandlerOptions{
-			Level:  l.level,
-			Output: l.output,
+			Level:       l.level,
+			Output:      l.output,
+			ReplaceAttr: opts.ReplaceAttr,
+			TimeFormat:  opts.TimeFormat,
+			NoColor:     opts.NoColor,
 		})
 	}
 	return l
@@ -114,6 +153,47 @@ func (l *Logger) SetLevel(lvl Level) {
 // It returns true if a log message at the given level would be output.
 func (l *Logger) Enabled(level Level) bool {
 	return l.handler.Enabled(level)
+}
+
+// WithAttrs returns a new Logger that includes the given attributes in all subsequent log output.
+// The attributes are added to every log record produced by the returned logger.
+// args can be key-value pairs (string, any, string, any, ...) or Attr values.
+func (l *Logger) WithAttrs(args ...any) *Logger {
+	if len(args) == 0 {
+		return l
+	}
+	return &Logger{
+		level:   l.level,
+		output:  l.output,
+		handler: l.handler.WithAttrs(argsToAttrSlice(args)),
+	}
+}
+
+// WithPrefix returns a new Logger that includes the given prefix in all subsequent log output.
+// The prefix is prepended to the logger's existing prefix (if any).
+func (l *Logger) WithPrefix(prefix string) *Logger {
+	if prefix == "" {
+		return l
+	}
+	return &Logger{
+		level:   l.level,
+		output:  l.output,
+		handler: l.handler.WithPrefix(prefix),
+	}
+}
+
+// WithGroup returns a new Logger that starts a group for all subsequent log output.
+// All attributes added by the returned logger will be nested under the given group name.
+// If the name is empty, WithGroup returns the receiver unchanged.
+func (l *Logger) WithGroup(name string) *Logger {
+	if name == "" {
+		return l
+	}
+	return &Logger{
+		level:   l.level,
+		output:  l.output,
+		handler: l.handler.WithGroup(name),
+	}
 }
 
 // Log outputs a log record at the specified level with the given message and optional attributes.

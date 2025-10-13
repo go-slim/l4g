@@ -90,6 +90,26 @@ func SetLevel(level Level) {
 	std.SetLevel(level)
 }
 
+// WithAttrs returns a new Logger based on the standard logger that includes the given attributes
+// in all subsequent log output. The attributes are added to every log record.
+// args can be key-value pairs (string, any, string, any, ...) or Attr values.
+func WithAttrs(args ...any) *Logger {
+	return std.WithAttrs(args...)
+}
+
+// WithPrefix returns a new Logger based on the standard logger that includes the given prefix
+// in all subsequent log output. The prefix is prepended to the logger's existing prefix (if any).
+func WithPrefix(prefix string) *Logger {
+	return std.WithPrefix(prefix)
+}
+
+// WithGroup returns a new Logger based on the standard logger that starts a group for all
+// subsequent log output. All attributes added by the returned logger will be nested under
+// the given group name. If the name is empty, WithGroup returns the standard logger.
+func WithGroup(name string) *Logger {
+	return std.WithGroup(name)
+}
+
 // Trace logs a message at trace level using the standard logger.
 // args can be key-value pairs (string, any, string, any, ...) or Attr values.
 func Trace(msg string, args ...any) {

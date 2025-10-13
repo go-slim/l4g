@@ -530,3 +530,120 @@ func BenchmarkChannel(b *testing.B) {
 		_ = Channel("test")
 	}
 }
+
+func TestWithAttrs(t *testing.T) {
+	buf := &bytes.Buffer{}
+	handler := NewSimpleHandler(HandlerOptions{
+		Level:   LevelInfo,
+		Output:  buf,
+		NoColor: true,
+	})
+	logger := New(buf, WithHandler(handler))
+	SetDefault(logger)
+
+	// Create a new logger with preset attributes
+	loggerWithAttrs := WithAttrs("app", "myapp", "env", "dev")
+	loggerWithAttrs.Info("test message")
+	output := buf.String()
+
+	if !strings.Contains(output, "test message") {
+		t.Errorf("WithAttrs() output = %q, want to contain 'test message'", output)
+	}
+	if !strings.Contains(output, "app=myapp") {
+		t.Errorf("WithAttrs() output = %q, want to contain 'app=myapp'", output)
+	}
+	if !strings.Contains(output, "env=dev") {
+		t.Errorf("WithAttrs() output = %q, want to contain 'env=dev'", output)
+	}
+
+	// Original default logger should not have the attributes
+	buf.Reset()
+	Info("original message")
+	output2 := buf.String()
+	if strings.Contains(output2, "app=myapp") {
+		t.Errorf("Default logger should not have attributes from derived logger")
+	}
+
+	SetDefault(New(io.Discard))
+}
+
+func TestWithPrefix(t *testing.T) {
+	buf := &bytes.Buffer{}
+	handler := NewSimpleHandler(HandlerOptions{
+		Level:   LevelInfo,
+		Output:  buf,
+		NoColor: true,
+	})
+	logger := New(buf, WithHandler(handler))
+	SetDefault(logger)
+
+	// Create a new logger with prefix
+	loggerWithPrefix := WithPrefix("HTTP")
+	loggerWithPrefix.Info("request received")
+	output := buf.String()
+
+	if !strings.Contains(output, "[HTTP]") {
+		t.Errorf("WithPrefix() output = %q, want to contain '[HTTP]'", output)
+	}
+	if !strings.Contains(output, "request received") {
+		t.Errorf("WithPrefix() output = %q, want to contain 'request received'", output)
+	}
+
+	SetDefault(New(io.Discard))
+}
+
+func TestWithGroup(t *testing.T) {
+	buf := &bytes.Buffer{}
+	handler := NewSimpleHandler(HandlerOptions{
+		Level:   LevelInfo,
+		Output:  buf,
+		NoColor: true,
+	})
+	logger := New(buf, WithHandler(handler))
+	SetDefault(logger)
+
+	// Create a new logger with group
+	loggerWithGroup := WithGroup("request")
+	loggerWithGroup.Info("processing", "method", "GET", "path", "/api")
+	output := buf.String()
+
+	if !strings.Contains(output, "request.method=GET") {
+		t.Errorf("WithGroup() output = %q, want to contain 'request.method=GET'", output)
+	}
+	if !strings.Contains(output, "request.path=/api") {
+		t.Errorf("WithGroup() output = %q, want to contain 'request.path=/api'", output)
+	}
+
+	SetDefault(New(io.Discard))
+}
+
+func TestPackage_Chaining(t *testing.T) {
+	buf := &bytes.Buffer{}
+	handler := NewSimpleHandler(HandlerOptions{
+		Level:   LevelInfo,
+		Output:  buf,
+		NoColor: true,
+	})
+	logger := New(buf, WithHandler(handler))
+	SetDefault(logger)
+
+	// Test chaining WithAttrs, WithPrefix, and WithGroup
+	derived := WithPrefix("API").WithAttrs("version", "v1").WithGroup("metrics")
+	derived.Info("completed", "duration", "150ms", "status", 200)
+	output := buf.String()
+
+	if !strings.Contains(output, "[API]") {
+		t.Errorf("Chained logger output = %q, want to contain '[API]'", output)
+	}
+	if !strings.Contains(output, "version=v1") {
+		t.Errorf("Chained logger output = %q, want to contain 'version=v1'", output)
+	}
+	if !strings.Contains(output, "metrics.duration=150ms") {
+		t.Errorf("Chained logger output = %q, want to contain 'metrics.duration=150ms'", output)
+	}
+	if !strings.Contains(output, "metrics.status=200") {
+		t.Errorf("Chained logger output = %q, want to contain 'metrics.status=200'", output)
+	}
+
+	SetDefault(New(io.Discard))
+}

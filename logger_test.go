@@ -455,17 +455,111 @@ func TestLogger_WithAttrs(t *testing.T) {
 	})
 	logger := New(buf, WithHandler(handler))
 
-	logger.Info("before", String("a", "1"))
-	output1 := buf.String()
+	// Create a new logger with preset attributes
+	loggerWithAttrs := logger.WithAttrs("service", "api", "version", "v1.0")
+	loggerWithAttrs.Info("test message")
+	output := buf.String()
 
-	logger.Info("after", String("b", "2"))
-	output2 := buf.String()
-
-	if !strings.Contains(output1, "a=1") {
-		t.Errorf("Logger with attrs output1 = %q, want to contain a=1", output1)
+	if !strings.Contains(output, "test message") {
+		t.Errorf("Logger.WithAttrs() output = %q, want to contain 'test message'", output)
 	}
-	if !strings.Contains(output2, "b=2") {
-		t.Errorf("Logger with attrs output2 = %q, want to contain b=2", output2)
+	if !strings.Contains(output, "service=api") {
+		t.Errorf("Logger.WithAttrs() output = %q, want to contain 'service=api'", output)
+	}
+	if !strings.Contains(output, "version=v1.0") {
+		t.Errorf("Logger.WithAttrs() output = %q, want to contain 'version=v1.0'", output)
+	}
+
+	// Original logger should not have the attributes
+	buf.Reset()
+	logger.Info("original message")
+	output2 := buf.String()
+	if strings.Contains(output2, "service=api") {
+		t.Errorf("Original logger should not have attributes from derived logger")
+	}
+}
+
+func TestLogger_WithPrefix(t *testing.T) {
+	buf := &bytes.Buffer{}
+	handler := NewSimpleHandler(HandlerOptions{
+		Level:   LevelInfo,
+		Output:  buf,
+		NoColor: true,
+	})
+	logger := New(buf, WithHandler(handler))
+
+	// Create a new logger with prefix
+	loggerWithPrefix := logger.WithPrefix("HTTP")
+	loggerWithPrefix.Info("request received")
+	output := buf.String()
+
+	if !strings.Contains(output, "[HTTP]") {
+		t.Errorf("Logger.WithPrefix() output = %q, want to contain '[HTTP]'", output)
+	}
+	if !strings.Contains(output, "request received") {
+		t.Errorf("Logger.WithPrefix() output = %q, want to contain 'request received'", output)
+	}
+
+	// Test empty prefix returns same logger
+	samLogger := logger.WithPrefix("")
+	if samLogger != logger {
+		t.Errorf("Logger.WithPrefix(\"\") should return the same logger")
+	}
+}
+
+func TestLogger_WithGroup(t *testing.T) {
+	buf := &bytes.Buffer{}
+	handler := NewSimpleHandler(HandlerOptions{
+		Level:   LevelInfo,
+		Output:  buf,
+		NoColor: true,
+	})
+	logger := New(buf, WithHandler(handler))
+
+	// Create a new logger with group
+	loggerWithGroup := logger.WithGroup("request")
+	loggerWithGroup.Info("processing", "method", "GET", "path", "/api")
+	output := buf.String()
+
+	if !strings.Contains(output, "request.method=GET") {
+		t.Errorf("Logger.WithGroup() output = %q, want to contain 'request.method=GET'", output)
+	}
+	if !strings.Contains(output, "request.path=/api") {
+		t.Errorf("Logger.WithGroup() output = %q, want to contain 'request.path=/api'", output)
+	}
+
+	// Test empty group returns same logger
+	sameLogger := logger.WithGroup("")
+	if sameLogger != logger {
+		t.Errorf("Logger.WithGroup(\"\") should return the same logger")
+	}
+}
+
+func TestLogger_WithAttrs_Chaining(t *testing.T) {
+	buf := &bytes.Buffer{}
+	handler := NewSimpleHandler(HandlerOptions{
+		Level:   LevelInfo,
+		Output:  buf,
+		NoColor: true,
+	})
+	logger := New(buf, WithHandler(handler))
+
+	// Test chaining WithAttrs, WithPrefix, and WithGroup
+	derived := logger.WithPrefix("API").WithAttrs("version", "v1").WithGroup("metrics")
+	derived.Info("completed", "duration", "150ms", "status", 200)
+	output := buf.String()
+
+	if !strings.Contains(output, "[API]") {
+		t.Errorf("Chained logger output = %q, want to contain '[API]'", output)
+	}
+	if !strings.Contains(output, "version=v1") {
+		t.Errorf("Chained logger output = %q, want to contain 'version=v1'", output)
+	}
+	if !strings.Contains(output, "metrics.duration=150ms") {
+		t.Errorf("Chained logger output = %q, want to contain 'metrics.duration=150ms'", output)
+	}
+	if !strings.Contains(output, "metrics.status=200") {
+		t.Errorf("Chained logger output = %q, want to contain 'metrics.status=200'", output)
 	}
 }
 

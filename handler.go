@@ -14,22 +14,6 @@ import (
 	"unicode/utf8"
 )
 
-// PartKind represents the different parts of a log record that can be customized.
-type PartKind int8
-
-const (
-	// PartTime represents the timestamp part of a log record.
-	PartTime PartKind = iota
-	// PartLevel represents the log level part of a log record.
-	PartLevel
-	// PartMessage represents the message part of a log record.
-	PartMessage
-	// PartAttrs represents the attributes part of a log record.
-	PartAttrs
-	// PartPrefix represents the prefix part of a log record.
-	PartPrefix
-)
-
 // A Handler handles log records produced by a Logger.
 //
 // Any of the Handler's methods may be called concurrently with itself
@@ -228,11 +212,15 @@ func (h *SimpleHandler) Handle(r Record) error {
 	}
 
 	//write prefix
-	if r.Prefix != "" {
+	prefix := r.Prefix
+	if prefix == "" {
+		prefix = h.prefix
+	}
+	if prefix != "" {
 		if rep == nil {
-			buf.WriteString("[" + r.Prefix + "]")
+			buf.WriteString("[" + prefix + "]")
 			buf.WriteByte(' ')
-		} else if a := rep(nil /* groups */, slog.String(PrefixKey, r.Prefix)); a.Key != "" {
+		} else if a := rep(nil /* groups */, slog.String(PrefixKey, prefix)); a.Key != "" {
 			val, color := h.resolve(a.Value)
 			h.appendTintValue(buf, val, false, color, true)
 			buf.WriteByte(' ')
