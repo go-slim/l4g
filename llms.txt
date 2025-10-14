@@ -110,6 +110,8 @@ Output formatting and processing.
 - `Output *OutputVar`: Output destination (thread-safe)
 - `ReplaceAttr func([]string, Attr) Attr`: Transform attributes
 - `TimeFormat string`: Time format string
+- `LevelFormat func(Level) string`: Custom level formatting (default: uppercase level name)
+- `PrefixFormat func(string) string`: Custom prefix formatting (default: [prefix])
 - `NoColor bool`: Disable ANSI colors
 
 **Color Constants:**
@@ -369,6 +371,81 @@ func TestFatalLogging(t *testing.T) {
         t.Errorf("Expected exit code 1, got %d", exitCode)
     }
 }
+```
+
+### Pattern 11: Custom Level and Prefix Formatting
+```go
+// Custom level format with abbreviations
+handler := l4g.NewSimpleHandler(l4g.HandlerOptions{
+    Output: os.Stdout,
+    Level:  l4g.NewLevelVar(l4g.LevelInfo),
+    LevelFormat: func(level l4g.Level) string {
+        switch level.Real() {
+        case l4g.LevelTrace:
+            return "TRC"
+        case l4g.LevelDebug:
+            return "DBG"
+        case l4g.LevelInfo:
+            return "INF"
+        case l4g.LevelWarn:
+            return "WRN"
+        case l4g.LevelError:
+            return "ERR"
+        case l4g.LevelPanic:
+            return "PNL"
+        case l4g.LevelFatal:
+            return "FTL"
+        default:
+            return "???"
+        }
+    },
+    PrefixFormat: func(prefix string) string {
+        return "【" + prefix + "】" // Unicode brackets
+    },
+})
+
+logger := l4g.New(l4g.Options{
+    Handler: handler,
+    Prefix:  "myapp",
+})
+
+logger.Info("Server started")
+// Output: Jan 02 15:04:05.000 INF 【myapp】 Server started
+```
+
+### Pattern 12: Emoji-based Level Formatting
+```go
+handler := l4g.NewSimpleHandler(l4g.HandlerOptions{
+    Output: os.Stdout,
+    Level:  l4g.NewLevelVar(l4g.LevelInfo),
+    LevelFormat: func(level l4g.Level) string {
+        switch level.Real() {
+        case l4g.LevelTrace:
+            return "🔍 TRACE"
+        case l4g.LevelDebug:
+            return "🐛 DEBUG"
+        case l4g.LevelInfo:
+            return "ℹ️ INFO"
+        case l4g.LevelWarn:
+            return "⚠️ WARN"
+        case l4g.LevelError:
+            return "❌ ERROR"
+        case l4g.LevelPanic:
+            return "💥 PANIC"
+        case l4g.LevelFatal:
+            return "☠️ FATAL"
+        default:
+            return "❓"
+        }
+    },
+    PrefixFormat: func(prefix string) string {
+        return "🚀 " + prefix
+    },
+})
+
+logger := l4g.New(l4g.Options{Handler: handler, Prefix: "api"})
+logger.Info("Request handled")
+// Output: Jan 02 15:04:05.000 ℹ️ INFO 🚀 api Request handled
 ```
 
 ## Best Practices

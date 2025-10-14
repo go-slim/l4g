@@ -611,3 +611,172 @@ func TestSimpleHandler_LevelFormat_WithColor(t *testing.T) {
 		t.Errorf("Output should contain ANSI color codes")
 	}
 }
+
+func TestSimpleHandler_PrefixFormat(t *testing.T) {
+	tests := []struct {
+		name         string
+		prefix       string
+		prefixFormat func(string) string
+		want         string
+	}{
+		{
+			name:   "default format",
+			prefix: "myapp",
+			want:   "[myapp]",
+		},
+		{
+			name:   "custom format with parentheses",
+			prefix: "api",
+			prefixFormat: func(p string) string {
+				return "(" + p + ")"
+			},
+			want: "(api)",
+		},
+		{
+			name:   "custom format with emoji",
+			prefix: "server",
+			prefixFormat: func(p string) string {
+				return "🚀 " + p
+			},
+			want: "🚀 server",
+		},
+		{
+			name:   "custom format with unicode brackets",
+			prefix: "worker",
+			prefixFormat: func(p string) string {
+				return "【" + p + "】"
+			},
+			want: "【worker】",
+		},
+		{
+			name:   "custom format uppercase",
+			prefix: "service",
+			prefixFormat: func(p string) string {
+				return "<" + strings.ToUpper(p) + ">"
+			},
+			want: "<SERVICE>",
+		},
+		{
+			name:   "custom format with padding",
+			prefix: "db",
+			prefixFormat: func(p string) string {
+				return "[" + strings.ToUpper(p) + "    ]"
+			},
+			want: "[DB    ]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf := &bytes.Buffer{}
+			h := NewSimpleHandler(HandlerOptions{
+				Level:        LevelInfo,
+				Output:       buf,
+				NoColor:      true,
+				PrefixFormat: tt.prefixFormat,
+			})
+
+			r := NewRecord(time.Now(), LevelInfo, "test message")
+			r.Prefix = tt.prefix
+			err := h.Handle(r)
+			if err != nil {
+				t.Errorf("SimpleHandler.Handle() error = %v", err)
+			}
+
+			output := buf.String()
+			if !strings.Contains(output, tt.want) {
+				t.Errorf("PrefixFormat output = %q, want to contain %q", output, tt.want)
+			}
+		})
+	}
+}
+
+func TestSimpleHandler_PrefixFormat_WithColor(t *testing.T) {
+	buf := &bytes.Buffer{}
+	h := NewSimpleHandler(HandlerOptions{
+		Level:  LevelInfo,
+		Output: buf,
+		PrefixFormat: func(p string) string {
+			return "<" + p + ">"
+		},
+		NoColor: false, // colors enabled
+	})
+
+	r := NewRecord(time.Now(), LevelInfo, "test")
+	r.Prefix = "app"
+	err := h.Handle(r)
+	if err != nil {
+		t.Errorf("SimpleHandler.Handle() error = %v", err)
+	}
+
+	output := buf.String()
+	// Should contain custom format
+	if !strings.Contains(output, "<app>") {
+		t.Errorf("Output should contain custom prefix format <app>, got: %q", output)
+	}
+	// Should still have ANSI color codes
+	if !strings.Contains(output, "\x1b[") {
+		t.Errorf("Output should contain ANSI color codes")
+	}
+}
+
+func TestSimpleHandler_PrefixFormat_EmptyPrefix(t *testing.T) {
+	buf := &bytes.Buffer{}
+	h := NewSimpleHandler(HandlerOptions{
+		Level:  LevelInfo,
+		Output: buf,
+		PrefixFormat: func(p string) string {
+			return "[PREFIX:" + p + "]"
+		},
+		NoColor: true,
+	})
+
+	r := NewRecord(time.Now(), LevelInfo, "test message")
+	// No prefix set
+	err := h.Handle(r)
+	if err != nil {
+		t.Errorf("SimpleHandler.Handle() error = %v", err)
+	}
+
+	output := buf.String()
+	// Should NOT contain prefix format since prefix is empty
+	if strings.Contains(output, "[PREFIX:") {
+		t.Errorf("Output should not contain prefix format when prefix is empty, got: %q", output)
+	}
+}
+
+func TestSimpleHandler_PrefixFormat_WithReplaceAttr(t *testing.T) {
+	buf := &bytes.Buffer{}
+	h := NewSimpleHandler(HandlerOptions{
+		Level:   LevelInfo,
+		Output:  buf,
+		NoColor: true,
+		PrefixFormat: func(p string) string {
+			return "{" + p + "}"
+		},
+		ReplaceAttr: func(groups []string, attr Attr) Attr {
+			// When ReplaceAttr is used, it overrides PrefixFormat
+			if attr.Key == PrefixKey {
+				return String(PrefixKey, "[REPLACED:"+attr.Value.String()+"]")
+			}
+			return attr
+		},
+	})
+
+	r := NewRecord(time.Now(), LevelInfo, "test")
+	r.Prefix = "test"
+	err := h.Handle(r)
+	if err != nil {
+		t.Errorf("SimpleHandler.Handle() error = %v", err)
+	}
+
+	output := buf.String()
+	// Should contain ReplaceAttr output, not PrefixFormat
+	if !strings.Contains(output, "[REPLACED:test]") {
+		t.Errorf("Output should contain ReplaceAttr result, got: %q", output)
+	}
+	// Should NOT contain PrefixFormat output
+	if strings.Contains(output, "{test}") {
+		t.Errorf("Output should not contain PrefixFormat when ReplaceAttr is used, got: %q", output)
+	}
+}

@@ -26,6 +26,8 @@ type Options struct {
 	TimeFormat string
 	// LevelFormat level format (Default: nil)
 	LevelFormat func(Level) string
+	// PrefixFormat prefix format (Default: nil)
+	PrefixFormat func(string) string
 	// Output destination (default: os.Stderr)
 	Output io.Writer
 	// NoColor disable color output (default: false)
@@ -49,13 +51,14 @@ func New(opts Options) *Logger {
 	}
 	if opts.Handler == nil {
 		l.handler = opts.NewHandlerFunc(HandlerOptions{
-			Prefix:      opts.Prefix,
-			Level:       l.level,
-			Output:      l.output,
-			ReplaceAttr: opts.ReplaceAttr,
-			TimeFormat:  opts.TimeFormat,
-			LevelFormat: opts.LevelFormat,
-			NoColor:     opts.NoColor,
+			Prefix:       opts.Prefix,
+			Level:        l.level,
+			Output:       l.output,
+			ReplaceAttr:  opts.ReplaceAttr,
+			TimeFormat:   opts.TimeFormat,
+			LevelFormat:  opts.LevelFormat,
+			PrefixFormat: opts.PrefixFormat,
+			NoColor:      opts.NoColor,
 		})
 	}
 	return l

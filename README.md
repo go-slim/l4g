@@ -129,6 +129,95 @@ handler := l4g.NewSimpleHandler(l4g.HandlerOptions{
 logger := l4g.New(os.Stdout, l4g.WithHandler(handler))
 ```
 
+### Custom Formatting
+
+#### Level Format
+
+Customize how log levels are displayed:
+
+```go
+handler := l4g.NewSimpleHandler(l4g.HandlerOptions{
+    Level:  l4g.NewLevelVar(l4g.LevelInfo),
+    Output: os.Stdout,
+    LevelFormat: func(level l4g.Level) string {
+        // Use abbreviations
+        switch level.Real() {
+        case l4g.LevelTrace:
+            return "TRC"
+        case l4g.LevelDebug:
+            return "DBG"
+        case l4g.LevelInfo:
+            return "INF"
+        case l4g.LevelWarn:
+            return "WRN"
+        case l4g.LevelError:
+            return "ERR"
+        default:
+            return "???"
+        }
+    },
+})
+
+logger := l4g.New(os.Stdout, l4g.WithHandler(handler))
+```
+
+You can also use emojis for visual distinction:
+
+```go
+LevelFormat: func(level l4g.Level) string {
+    switch level.Real() {
+    case l4g.LevelTrace:
+        return "🔍 TRACE"
+    case l4g.LevelDebug:
+        return "🐛 DEBUG"
+    case l4g.LevelInfo:
+        return "ℹ️ INFO"
+    case l4g.LevelWarn:
+        return "⚠️ WARN"
+    case l4g.LevelError:
+        return "❌ ERROR"
+    default:
+        return "❓"
+    }
+}
+```
+
+#### Prefix Format
+
+Customize how prefixes are displayed:
+
+```go
+handler := l4g.NewSimpleHandler(l4g.HandlerOptions{
+    Level:  l4g.NewLevelVar(l4g.LevelInfo),
+    Output: os.Stdout,
+    PrefixFormat: func(prefix string) string {
+        return "【" + prefix + "】"  // Unicode brackets
+    },
+})
+
+logger := l4g.New(os.Stdout,
+    l4g.WithHandler(handler),
+    l4g.WithPrefix("myapp"),
+)
+
+// Output: Jan 02 15:04:05.000 INFO 【myapp】 Application started
+```
+
+Other prefix format examples:
+
+```go
+// Simple parentheses
+PrefixFormat: func(p string) string { return "(" + p + ")" }
+
+// Uppercase with padding
+PrefixFormat: func(p string) string {
+    return "[" + strings.ToUpper(p) + "    ]"
+}
+
+// With emoji
+PrefixFormat: func(p string) string { return "🚀 " + p }
+```
+
 ### Formatted Logging
 
 ```go

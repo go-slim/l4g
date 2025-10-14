@@ -87,6 +87,9 @@ type HandlerOptions struct {
 	// LevelFormat level format (Default: nil)
 	LevelFormat func(Level) string
 
+	// PrefixFormat prefix format (Default: nil)
+	PrefixFormat func(string) string
+
 	// NoColor disable color (Default: false)
 	NoColor bool
 
@@ -229,7 +232,12 @@ func (h *SimpleHandler) Handle(rr Record) error {
 	//write prefix
 	if r.Prefix != "" {
 		if rep == nil {
-			buf.WriteString("[" + r.Prefix + "]")
+			// Use custom PrefixFormat if provided, otherwise use default [prefix] format
+			if h.opts.PrefixFormat != nil {
+				buf.WriteString(h.opts.PrefixFormat(r.Prefix))
+			} else {
+				buf.WriteString("[" + r.Prefix + "]")
+			}
 			buf.WriteByte(' ')
 		} else if a := rep(nil /* groups */, slog.String(PrefixKey, r.Prefix)); a.Key != "" {
 			val, color := h.resolve(a.Value)
