@@ -12,103 +12,42 @@ import (
 
 // Options holds configuration options for creating a new Logger.
 type Options struct {
-	Level          Level                                    // Minimum log level to output
-	NewHandlerFunc func(opts HandlerOptions) Handler        // Factory function to create a handler
-	Handler        Handler                                  // Custom handler to use (overrides NewHandlerFunc)
-	ReplaceAttr    func(groups []string, attr Attr) Attr    // Function to rewrite attributes before logging
-	TimeFormat     string                                   // Time format string (default: time.StampMilli)
-	Output         io.Writer                                // Output destination (default: os.Stderr)
-	NoColor        bool                                     // Disable color output (default: false)
-}
-
-// Option is a functional option for configuring a Logger.
-type Option func(*Options)
-
-// WithLevel returns an Option that sets the minimum log level.
-// Only log messages at or above this level will be output.
-func WithLevel(lvl Level) Option {
-	return func(opts *Options) {
-		opts.Level = lvl
-	}
-}
-
-// WithNewHandlerFunc returns an Option that sets a custom handler factory function.
-// The factory function will be called to create the handler when the logger is initialized.
-func WithNewHandlerFunc(f func(opts HandlerOptions) Handler) Option {
-	return func(opts *Options) {
-		opts.NewHandlerFunc = f
-	}
-}
-
-// WithHandler returns an Option that sets a custom handler.
-// This overrides the default handler and any handler factory function.
-func WithHandler(h Handler) Option {
-	return func(opts *Options) {
-		opts.NewHandlerFunc = func(_ HandlerOptions) Handler {
-			return h
-		}
-	}
-}
-
-// WithReplaceAttr returns an Option that sets a function to rewrite attributes before logging.
-// The function is called for each non-group attribute and can modify, filter, or replace attributes.
-func WithReplaceAttr(f func(groups []string, attr Attr) Attr) Option {
-	return func(opts *Options) {
-		opts.ReplaceAttr = f
-	}
-}
-
-// WithTimeFormat returns an Option that sets the time format string.
-// The format string follows time.Time.Format conventions (e.g., time.StampMilli, time.RFC3339).
-// If not set, defaults to time.StampMilli.
-func WithTimeFormat(format string) Option {
-	return func(opts *Options) {
-		opts.TimeFormat = format
-	}
-}
-
-// WithColor returns an Option that enables or disables colorized output.
-// When enabled (color=true), log output will include ANSI color codes for terminal display.
-// When disabled (color=false), output is plain text without color codes.
-func WithColor(color bool) Option {
-	return func(opts *Options) {
-		opts.NoColor = !color
-	}
-}
-
-// WithOutput returns an Option that sets the output destination.
-// This will be passed to the handler if no custom handler is provided.
-func WithOutput(w io.Writer) Option {
-	return func(opts *Options) {
-		opts.Output = w
-	}
+	// Prefix is the prefix to use for all log messages.
+	Prefix string
+	// Level minimum log level to output
+	Level Level
+	// NewHandlerFunc factory function to create a handler
+	NewHandlerFunc func(opts HandlerOptions) Handler
+	// Handler custom handler to use (overrides NewHandlerFunc)
+	Handler Handler
+	// ReplaceAttr function to rewrite attributes before logging
+	ReplaceAttr func(groups []string, attr Attr) Attr
+	// TimeFormat time format string (default: time.StampMilli)
+	TimeFormat string
+	// Output destination (default: os.Stderr)
+	Output io.Writer
+	// NoColor disable color output (default: false)
+	NoColor bool
 }
 
 // New creates a new Logger that writes to the given io.Writer.
 // By default, it uses LevelInfo as the minimum log level and SimpleHandler for output formatting.
 // The behavior can be customized using Option functions.
-func New(out io.Writer, options ...Option) *Logger {
-	opts := Options{
-		Level:          LevelInfo,
-		NewHandlerFunc: NewSimpleHandler,
+func New(opts Options) *Logger {
+	if opts.Level == 0 {
+		opts.Level = LevelInfo
 	}
-	for _, option := range options {
-		option(&opts)
+	if opts.NewHandlerFunc == nil {
+		opts.NewHandlerFunc = NewSimpleHandler
 	}
-
-	// Use Output from options if provided, otherwise use the out parameter
-	output := out
-	if opts.Output != nil {
-		output = opts.Output
-	}
-
 	l := &Logger{
-		level:   NewLevelVar(opts.Level),
-		output:  NewOutputVar(output),
+		level:   NewLevelVar(opts.Level.Real()),
+		output:  NewOutputVar(opts.Output),
 		handler: opts.Handler,
 	}
 	if opts.Handler == nil {
 		l.handler = opts.NewHandlerFunc(HandlerOptions{
+			Prefix:      opts.Prefix,
 			Level:       l.level,
 			Output:      l.output,
 			ReplaceAttr: opts.ReplaceAttr,

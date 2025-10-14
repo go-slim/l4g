@@ -9,7 +9,7 @@ import (
 
 func TestNew(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	if logger == nil {
 		t.Errorf("New() returned nil")
@@ -21,9 +21,10 @@ func TestNew(t *testing.T) {
 
 func TestNew_WithOptions(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf,
-		WithLevel(LevelDebug),
-	)
+	logger := New(Options{
+		Output: buf,
+		Level:  LevelDebug,
+	})
 
 	if logger.Level() != LevelDebug {
 		t.Errorf("New() with level option = %v, want %v", logger.Level(), LevelDebug)
@@ -32,7 +33,7 @@ func TestNew_WithOptions(t *testing.T) {
 
 func TestLogger_SetLevel(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	tests := []Level{LevelTrace, LevelDebug, LevelInfo, LevelWarn, LevelError, LevelPanic, LevelFatal}
 	for _, level := range tests {
@@ -49,7 +50,7 @@ func TestLogger_SetOutput(t *testing.T) {
 	buf1 := &bytes.Buffer{}
 	buf2 := &bytes.Buffer{}
 
-	logger := New(buf1)
+	logger := New(Options{Output: buf1})
 	logger.Info("test1")
 
 	logger.SetOutput(buf2)
@@ -65,7 +66,7 @@ func TestLogger_SetOutput(t *testing.T) {
 
 func TestLogger_Output(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	if logger.Output() != buf {
 		t.Errorf("Logger.Output() mismatch")
@@ -74,7 +75,7 @@ func TestLogger_Output(t *testing.T) {
 
 func TestLogger_Enabled(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf, WithLevel(LevelWarn))
+	logger := New(Options{Output: buf, Level: LevelWarn})
 
 	tests := []struct {
 		level   Level
@@ -100,7 +101,7 @@ func TestLogger_Enabled(t *testing.T) {
 
 func TestLogger_Trace(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf, WithLevel(LevelTrace))
+	logger := New(Options{Output: buf, Level: LevelTrace})
 
 	logger.Trace("trace message")
 	output := buf.String()
@@ -112,7 +113,7 @@ func TestLogger_Trace(t *testing.T) {
 
 func TestLogger_Tracef(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf, WithLevel(LevelTrace))
+	logger := New(Options{Output: buf, Level: LevelTrace})
 
 	logger.Tracef("trace %s %d", "message", 42)
 	output := buf.String()
@@ -129,7 +130,7 @@ func TestLogger_Tracej(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 
 	logger.Tracej(map[string]any{"key": "value", "count": 42})
 	output := buf.String()
@@ -141,7 +142,7 @@ func TestLogger_Tracej(t *testing.T) {
 
 func TestLogger_Debug(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf, WithLevel(LevelDebug))
+	logger := New(Options{Output: buf, Level: LevelDebug})
 
 	logger.Debug("debug message")
 	output := buf.String()
@@ -153,7 +154,7 @@ func TestLogger_Debug(t *testing.T) {
 
 func TestLogger_Debugf(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf, WithLevel(LevelDebug))
+	logger := New(Options{Output: buf, Level: LevelDebug})
 
 	logger.Debugf("debug %s %d", "message", 42)
 	output := buf.String()
@@ -170,7 +171,7 @@ func TestLogger_Debugj(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 
 	logger.Debugj(map[string]any{"key": "value"})
 	output := buf.String()
@@ -182,7 +183,7 @@ func TestLogger_Debugj(t *testing.T) {
 
 func TestLogger_Info(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	logger.Info("info message")
 	output := buf.String()
@@ -194,7 +195,7 @@ func TestLogger_Info(t *testing.T) {
 
 func TestLogger_Infof(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	logger.Infof("info %s %d", "message", 42)
 	output := buf.String()
@@ -211,7 +212,7 @@ func TestLogger_Infoj(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 
 	logger.Infoj(map[string]any{"status": "ok", "code": 200})
 	output := buf.String()
@@ -223,7 +224,7 @@ func TestLogger_Infoj(t *testing.T) {
 
 func TestLogger_Warn(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	logger.Warn("warn message")
 	output := buf.String()
@@ -235,7 +236,7 @@ func TestLogger_Warn(t *testing.T) {
 
 func TestLogger_Warnf(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	logger.Warnf("warn %s %d", "message", 42)
 	output := buf.String()
@@ -252,7 +253,7 @@ func TestLogger_Warnj(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 
 	logger.Warnj(map[string]any{"warning": "test"})
 	output := buf.String()
@@ -264,7 +265,7 @@ func TestLogger_Warnj(t *testing.T) {
 
 func TestLogger_Error(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	logger.Error("error message")
 	output := buf.String()
@@ -276,7 +277,7 @@ func TestLogger_Error(t *testing.T) {
 
 func TestLogger_Errorf(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	logger.Errorf("error %s %d", "message", 42)
 	output := buf.String()
@@ -293,7 +294,7 @@ func TestLogger_Errorj(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 
 	logger.Errorj(map[string]any{"error": "failed", "code": 500})
 	output := buf.String()
@@ -305,7 +306,7 @@ func TestLogger_Errorj(t *testing.T) {
 
 func TestLogger_Panic(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	defer func() {
 		if r := recover(); r == nil {
@@ -318,7 +319,7 @@ func TestLogger_Panic(t *testing.T) {
 
 func TestLogger_Panicf(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	defer func() {
 		if r := recover(); r == nil {
@@ -331,7 +332,7 @@ func TestLogger_Panicf(t *testing.T) {
 
 func TestLogger_Panicj(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	defer func() {
 		if r := recover(); r == nil {
@@ -344,7 +345,7 @@ func TestLogger_Panicj(t *testing.T) {
 
 func TestLogger_Fatal(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	exitCalled := false
 	exitCode := 0
@@ -369,7 +370,7 @@ func TestLogger_Fatal(t *testing.T) {
 
 func TestLogger_Fatalf(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	exitCalled := false
 
@@ -388,7 +389,7 @@ func TestLogger_Fatalf(t *testing.T) {
 
 func TestLogger_Fatalj(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	exitCalled := false
 
@@ -407,7 +408,7 @@ func TestLogger_Fatalj(t *testing.T) {
 
 func TestLogger_Log(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	logger.Log(LevelWarn, "log message")
 	output := buf.String()
@@ -419,7 +420,7 @@ func TestLogger_Log(t *testing.T) {
 
 func TestLogger_Logf(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	logger.Logf(LevelError, "log %s %d", "message", 42)
 	output := buf.String()
@@ -436,7 +437,7 @@ func TestLogger_Logj(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 
 	logger.Logj(LevelInfo, map[string]any{"test": "data"})
 	output := buf.String()
@@ -453,7 +454,7 @@ func TestLogger_WithAttrs(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 
 	// Create a new logger with preset attributes
 	loggerWithAttrs := logger.WithAttrs("service", "api", "version", "v1.0")
@@ -486,7 +487,7 @@ func TestLogger_WithPrefix(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 
 	// Create a new logger with prefix
 	loggerWithPrefix := logger.WithPrefix("HTTP")
@@ -514,7 +515,7 @@ func TestLogger_WithGroup(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 
 	// Create a new logger with group
 	loggerWithGroup := logger.WithGroup("request")
@@ -542,7 +543,7 @@ func TestLogger_WithAttrs_Chaining(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 
 	// Test chaining WithAttrs, WithPrefix, and WithGroup
 	derived := logger.WithPrefix("API").WithAttrs("version", "v1").WithGroup("metrics")
@@ -564,7 +565,7 @@ func TestLogger_WithAttrs_Chaining(t *testing.T) {
 }
 
 func TestLogger_DiscardOutput(t *testing.T) {
-	logger := New(io.Discard)
+	logger := New(Options{Output: io.Discard})
 
 	// Should not panic and should not write anything
 	logger.Info("test message")
@@ -573,7 +574,7 @@ func TestLogger_DiscardOutput(t *testing.T) {
 
 func TestLogger_LevelFiltering(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf, WithLevel(LevelWarn))
+	logger := New(Options{Output: buf, Level: LevelWarn})
 
 	logger.Debug("debug message")
 	logger.Info("info message")
@@ -594,7 +595,7 @@ func TestLogger_LevelFiltering(t *testing.T) {
 
 func TestWithLevel(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf, WithLevel(LevelError))
+	logger := New(Options{Output: buf, Level: LevelError})
 
 	if logger.Level() != LevelError {
 		t.Errorf("WithLevel() level = %v, want %v", logger.Level(), LevelError)
@@ -609,7 +610,7 @@ func TestWithHandler(t *testing.T) {
 		NoColor: true,
 	})
 
-	logger := New(buf, WithHandler(customHandler))
+	logger := New(Options{Output: buf, Handler: customHandler})
 
 	logger.Info("test")
 	if buf.Len() == 0 {
@@ -619,7 +620,7 @@ func TestWithHandler(t *testing.T) {
 
 func BenchmarkLogger_Info(b *testing.B) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -629,7 +630,7 @@ func BenchmarkLogger_Info(b *testing.B) {
 
 func BenchmarkLogger_InfoWithAttrs(b *testing.B) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -639,7 +640,7 @@ func BenchmarkLogger_InfoWithAttrs(b *testing.B) {
 
 func BenchmarkLogger_Infof(b *testing.B) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -649,7 +650,7 @@ func BenchmarkLogger_Infof(b *testing.B) {
 
 func BenchmarkLogger_Disabled(b *testing.B) {
 	buf := &bytes.Buffer{}
-	logger := New(buf, WithLevel(LevelError))
+	logger := New(Options{Output: buf, Level: LevelError})
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

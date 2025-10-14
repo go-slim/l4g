@@ -16,7 +16,7 @@ type Level int
 // but we picked them to satisfy three constraints.
 // Any system can map them to another numbering scheme if it wishes.
 const (
-	LevelTrace Level = iota
+	LevelTrace Level = iota + 1
 	LevelDebug
 	LevelInfo
 	LevelWarn

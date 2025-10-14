@@ -1,6 +1,7 @@
 package l4g
 
 import (
+	"errors"
 	"log/slog"
 	"testing"
 	"time"
@@ -394,4 +395,79 @@ func TestColorValue_LogValue(t *testing.T) {
 	if lv.String() != "test" {
 		t.Errorf("colorValue.LogValue() = %v, want 'test'", lv.String())
 	}
+}
+
+func TestErr(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{"simple error", errors.New("simple error")},
+		{"custom error", &customError{"custom error message"}},
+		{"nil error", nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			attr := Err(tt.err)
+
+			// Verify the key is "error"
+			if attr.Key != "error" {
+				t.Errorf("Err() key = %v, want 'error'", attr.Key)
+			}
+
+			// Verify that the value is wrapped in colorValue
+			if attr.Value.Kind() != slog.KindLogValuer {
+				t.Errorf("Err() kind = %v, want KindLogValuer", attr.Value.Kind())
+			}
+
+			// Verify the color is 9 (bright red)
+			if cv, ok := attr.Value.Any().(colorValue); ok {
+				if cv.Color != 9 {
+					t.Errorf("Err() color = %v, want 9 (bright red)", cv.Color)
+				}
+				// Verify the error value is preserved
+				if tt.err != nil {
+					actualErr := cv.Value.Any()
+					if actualErr != tt.err {
+						t.Errorf("Err() error value = %v, want %v", actualErr, tt.err)
+					}
+				}
+			} else {
+				t.Errorf("Err() value is not colorValue")
+			}
+		})
+	}
+}
+
+func TestErr_Integration(t *testing.T) {
+	// Test that Err behaves equivalently to ColorAttr(9, Any("error", err))
+	testErr := &customError{"test error"}
+
+	errAttr := Err(testErr)
+	manualAttr := ColorAttr(9, Any("error", testErr))
+
+	if errAttr.Key != manualAttr.Key {
+		t.Errorf("Err() key = %v, manual key = %v", errAttr.Key, manualAttr.Key)
+	}
+
+	errCV, ok1 := errAttr.Value.Any().(colorValue)
+	manualCV, ok2 := manualAttr.Value.Any().(colorValue)
+
+	if !ok1 || !ok2 {
+		t.Fatal("Both should be colorValue")
+	}
+
+	if errCV.Color != manualCV.Color {
+		t.Errorf("Err() color = %v, manual color = %v", errCV.Color, manualCV.Color)
+	}
+}
+
+// customError is a test helper for error testing
+type customError struct {
+	msg string
+}
+
+func (e *customError) Error() string {
+	return e.msg
 }

@@ -27,9 +27,9 @@ var (
 )
 
 func init() {
-	std = New(os.Stderr)
+	std = New(Options{Output: os.Stderr})
 	OsExiter = os.Exit
-	NewFunc = func(_ string) *Logger { return New(os.Stderr) }
+	NewFunc = func(_ string) *Logger { return New(Options{Output: os.Stderr}) }
 }
 
 // FallbackErrorf is the last-resort error reporting function used when the logger

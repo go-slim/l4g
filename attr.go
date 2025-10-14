@@ -10,7 +10,7 @@ type Attr = slog.Attr
 
 // String returns an Attr for a string value.
 // It supports any type with an underlying string type.
-func String[T ~string](key string, value T) slog.Attr {
+func String[T ~string](key string, value T) Attr {
 	return slog.String(key, string(value))
 }
 
@@ -21,47 +21,47 @@ func Int64(key string, value int64) Attr {
 
 // Int returns an Attr for an integer value.
 // It supports any type with an underlying int, int8, int16, int32, or int64 type.
-func Int[T ~int | ~int8 | ~int16 | ~int32 | ~int64](key string, value T) slog.Attr {
+func Int[T ~int | ~int8 | ~int16 | ~int32 | ~int64](key string, value T) Attr {
 	return slog.Int(key, int(value))
 }
 
 // Uint returns an Attr for an unsigned integer value.
 // It supports any type with an underlying uint, uint8, uint16, uint32, or uint64 type.
-func Uint[T ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64](key string, value T) slog.Attr {
+func Uint[T ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64](key string, value T) Attr {
 	return slog.Uint64(key, uint64(value))
 }
 
 // Float returns an Attr for a floating-point value.
 // It supports any type with an underlying float32 or float64 type.
-func Float[T ~float32 | ~float64](key string, value T) slog.Attr {
+func Float[T ~float32 | ~float64](key string, value T) Attr {
 	return slog.Float64(key, float64(value))
 }
 
 // Bool returns an Attr for a boolean value.
 // It supports any type with an underlying bool type.
-func Bool[T ~bool](key string, v T) slog.Attr {
+func Bool[T ~bool](key string, v T) Attr {
 	return slog.Bool(key, bool(v))
 }
 
 // Time returns an Attr for a time.Time value.
-func Time(key string, v time.Time) slog.Attr {
+func Time(key string, v time.Time) Attr {
 	return slog.Time(key, v)
 }
 
 // Duration returns an Attr for a time.Duration value.
-func Duration(key string, value time.Duration) slog.Attr {
+func Duration(key string, value time.Duration) Attr {
 	return slog.Duration(key, value)
 }
 
 // Group returns an Attr for a group of attributes.
 // The args can be Attr values or alternating key-value pairs (string, any, string, any, ...).
-func Group(key string, args ...any) slog.Attr {
+func Group(key string, args ...any) Attr {
 	return slog.Group(key, args...)
 }
 
 // Any returns an Attr for any value type.
 // The value is stored as-is and formatted according to its type at output time.
-func Any(key string, value any) slog.Attr {
+func Any(key string, value any) Attr {
 	return slog.Any(key, value)
 }
 
@@ -78,9 +78,9 @@ func (v colorValue) LogValue() slog.Value {
 	return v.Value
 }
 
-// ColorAttr returns a tinted (colorized) [slog.Attr] that will be written in the
+// ColorAttr returns a tinted (colorized) [Attr] that will be written in the
 // specified color by the [tint.Handler]. When used with any other [slog.Handler], it behaves as a
-// plain [slog.Attr].
+// plain [Attr].
 //
 // Use the uint8 color value to specify the color of the attribute:
 //
@@ -90,20 +90,28 @@ func (v colorValue) LogValue() slog.Value {
 //   - 232-255: grayscale from dark to light in 24 steps
 //
 // See https://en.wikipedia.org/wiki/ANSI_escape_code#8-bit
-func ColorAttr(color uint8, attr slog.Attr) slog.Attr {
+func ColorAttr(color uint8, attr Attr) Attr {
 	attr.Value = slog.AnyValue(colorValue{attr.Value, color})
 	return attr
 }
 
-func argsToAttrSlice(args []any) []slog.Attr {
+// Err returns a tinted (colorized) [Attr] that will be written in red color
+// by the [Handler]. When used with any other [Handler], it behaves as
+//
+//	Any("error", err)
+func Err(err error) Attr {
+	return ColorAttr(9, Any(errorKey, err))
+}
+
+func argsToAttrSlice(args []any) []Attr {
 	if len(args) == 0 {
 		return nil
 	}
 	var (
-		attr slog.Attr
+		attr Attr
 		// Pre-allocate with estimated capacity to reduce allocations
 		// argsToAttr typically consumes 1-2 args per iteration
-		attrs = make([]slog.Attr, 0, len(args)/2+1)
+		attrs = make([]Attr, 0, len(args)/2+1)
 	)
 	for len(args) > 0 {
 		attr, args = argsToAttr(args)
@@ -112,17 +120,17 @@ func argsToAttrSlice(args []any) []slog.Attr {
 	return attrs
 }
 
-func splitAttrs(args []any) ([]slog.Attr, []any) {
+func splitAttrs(args []any) ([]Attr, []any) {
 	if len(args) == 0 {
 		return nil, nil
 	}
 	// Pre-allocate with full capacity to avoid reallocation
 	// In worst case, all items go into one slice
-	attrs := make([]slog.Attr, 0, len(args))
+	attrs := make([]Attr, 0, len(args))
 	remaining := make([]any, 0, len(args))
 
 	for _, arg := range args {
-		if attr, ok := arg.(slog.Attr); ok {
+		if attr, ok := arg.(Attr); ok {
 			attrs = append(attrs, attr)
 		} else {
 			remaining = append(remaining, arg)

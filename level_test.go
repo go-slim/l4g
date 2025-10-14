@@ -35,13 +35,13 @@ func TestLevel_Int(t *testing.T) {
 		level Level
 		want  int
 	}{
-		{LevelTrace, 0},
-		{LevelDebug, 1},
-		{LevelInfo, 2},
-		{LevelWarn, 3},
-		{LevelError, 4},
-		{LevelPanic, 5},
-		{LevelFatal, 6},
+		{LevelTrace, 1},
+		{LevelDebug, 2},
+		{LevelInfo, 3},
+		{LevelWarn, 4},
+		{LevelError, 5},
+		{LevelPanic, 6},
+		{LevelFatal, 7},
 	}
 
 	for _, tt := range tests {

@@ -67,6 +67,9 @@ type Handler interface {
 // HandlerOptions are options for a [SimpleHandler].
 // A zero HandlerOptions consists entirely of default values.
 type HandlerOptions struct {
+	// Prefix is the prefix to use for all log messages.
+	Prefix string
+
 	// Level reports the minimum record level that will be logged.
 	// The handler discards records with lower levels.
 	// If Level is nil, the handler assumes LevelInfo.
@@ -100,6 +103,8 @@ const (
 	ansiBrightCyan   = "\u001b[96m"
 	ansiGray         = "\u001b[90m"
 	ansiWhite        = "\u001b[97m"
+
+	errorKey = "error"
 )
 
 // Keys for "built-in" attributes.
@@ -127,7 +132,8 @@ func NewSimpleHandler(opts HandlerOptions) Handler {
 	}
 
 	return &SimpleHandler{
-		opts: &opts,
+		prefix: opts.Prefix,
+		opts:   &opts,
 	}
 }
 
@@ -169,7 +175,13 @@ func (h *SimpleHandler) Enabled(level Level) bool {
 
 // Handle formats its argument [Record] as a single line of space-separated
 // fields.
-func (h *SimpleHandler) Handle(r Record) error {
+func (h *SimpleHandler) Handle(rr Record) error {
+	r := rr.Clone()
+	// Only use handler prefix if record doesn't have its own prefix
+	if r.Prefix == "" {
+		r.Prefix = h.prefix
+	}
+
 	// get a buffer from the sync pool
 	buf := newBuffer()
 	defer buf.Free()
@@ -212,15 +224,11 @@ func (h *SimpleHandler) Handle(r Record) error {
 	}
 
 	//write prefix
-	prefix := r.Prefix
-	if prefix == "" {
-		prefix = h.prefix
-	}
-	if prefix != "" {
+	if r.Prefix != "" {
 		if rep == nil {
-			buf.WriteString("[" + prefix + "]")
+			buf.WriteString("[" + r.Prefix + "]")
 			buf.WriteByte(' ')
-		} else if a := rep(nil /* groups */, slog.String(PrefixKey, prefix)); a.Key != "" {
+		} else if a := rep(nil /* groups */, slog.String(PrefixKey, r.Prefix)); a.Key != "" {
 			val, color := h.resolve(a.Value)
 			h.appendTintValue(buf, val, false, color, true)
 			buf.WriteByte(' ')
@@ -314,7 +322,7 @@ func (h *SimpleHandler) appendTintTime(buf *buffer, t time.Time, color int16) {
 		if color >= 0 {
 			appendAnsi(buf, uint8(color), true)
 		} else {
-			buf.WriteString(ansiFaint)
+			buf.WriteString(ansiFaint + ansiGray)
 		}
 		*buf = t.AppendFormat(*buf, h.opts.TimeFormat)
 		buf.WriteString(ansiReset)
@@ -349,22 +357,22 @@ func (h *SimpleHandler) appendTintLevel(buf *buffer, level Level, color int16) {
 		}
 	}
 
-	switch level {
+	switch level.Real() {
 	case LevelTrace:
-		buf.WriteString("TRC")
+		buf.WriteString("TRACE") // TRC
 	case LevelDebug:
-		buf.WriteString("DBG")
+		buf.WriteString("DEBUG") // DBG
 	case LevelInfo:
-		buf.WriteString("INF")
+		buf.WriteString("INFO") // INF
 	case LevelWarn:
-		buf.WriteString("WRN")
+		buf.WriteString("WARN") // WRN
 	case LevelError:
-		buf.WriteString("ERR")
+		buf.WriteString("ERROR") // ERR
 	case LevelPanic:
-		buf.WriteString("PNL")
-	default:
+		buf.WriteString("PANIC") // PNL
+	case LevelFatal:
 		// LevelFatal or higher
-		buf.WriteString("FTL")
+		buf.WriteString("FATAL") // FTL
 	}
 
 	if !h.opts.NoColor {

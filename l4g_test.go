@@ -17,7 +17,7 @@ func TestDefault(t *testing.T) {
 
 func TestSetDefault(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf, WithLevel(LevelDebug))
+	logger := New(Options{Output: buf, Level: LevelDebug})
 
 	SetDefault(logger)
 
@@ -26,12 +26,12 @@ func TestSetDefault(t *testing.T) {
 	}
 
 	// Restore original default
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestOutput(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 	SetDefault(logger)
 
 	output := Output()
@@ -39,7 +39,7 @@ func TestOutput(t *testing.T) {
 		t.Errorf("Output() mismatch")
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestSetOutput(t *testing.T) {
@@ -50,19 +50,19 @@ func TestSetOutput(t *testing.T) {
 
 func TestGetLevel(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf, WithLevel(LevelWarn))
+	logger := New(Options{Output: buf, Level: LevelWarn})
 	SetDefault(logger)
 
 	if GetLevel() != LevelWarn {
 		t.Errorf("GetLevel() = %v, want %v", GetLevel(), LevelWarn)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestSetLevel(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 	SetDefault(logger)
 
 	SetLevel(LevelError)
@@ -70,12 +70,12 @@ func TestSetLevel(t *testing.T) {
 		t.Errorf("SetLevel() did not update level")
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestPackageTrace(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf, WithLevel(LevelTrace))
+	logger := New(Options{Output: buf, Level: LevelTrace})
 	SetDefault(logger)
 
 	Trace("trace message")
@@ -85,12 +85,12 @@ func TestPackageTrace(t *testing.T) {
 		t.Errorf("Trace() output = %q, want to contain 'trace message'", output)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestPackageTracef(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf, WithLevel(LevelTrace))
+	logger := New(Options{Output: buf, Level: LevelTrace})
 	SetDefault(logger)
 
 	Tracef("trace %s %d", "message", 42)
@@ -100,7 +100,7 @@ func TestPackageTracef(t *testing.T) {
 		t.Errorf("Tracef() output = %q, want to contain 'trace message 42'", output)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestPackageTracej(t *testing.T) {
@@ -110,7 +110,7 @@ func TestPackageTracej(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 	SetDefault(logger)
 
 	Tracej(map[string]any{"key": "value"})
@@ -120,12 +120,12 @@ func TestPackageTracej(t *testing.T) {
 		t.Errorf("Tracej() output = %q, want to contain key=value", output)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestPackageDebug(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf, WithLevel(LevelDebug))
+	logger := New(Options{Output: buf, Level: LevelDebug})
 	SetDefault(logger)
 
 	Debug("debug message")
@@ -135,12 +135,12 @@ func TestPackageDebug(t *testing.T) {
 		t.Errorf("Debug() output = %q, want to contain 'debug message'", output)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestPackageDebugf(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf, WithLevel(LevelDebug))
+	logger := New(Options{Output: buf, Level: LevelDebug})
 	SetDefault(logger)
 
 	Debugf("debug %s", "message")
@@ -150,7 +150,7 @@ func TestPackageDebugf(t *testing.T) {
 		t.Errorf("Debugf() output = %q, want to contain 'debug message'", output)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestPackageDebugj(t *testing.T) {
@@ -160,7 +160,7 @@ func TestPackageDebugj(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 	SetDefault(logger)
 
 	Debugj(map[string]any{"debug": "test"})
@@ -170,12 +170,12 @@ func TestPackageDebugj(t *testing.T) {
 		t.Errorf("Debugj() output = %q, want to contain debug=test", output)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestPackageInfo(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 	SetDefault(logger)
 
 	Info("info message")
@@ -185,12 +185,12 @@ func TestPackageInfo(t *testing.T) {
 		t.Errorf("Info() output = %q, want to contain 'info message'", output)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestPackageInfof(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 	SetDefault(logger)
 
 	Infof("info %d", 123)
@@ -200,7 +200,7 @@ func TestPackageInfof(t *testing.T) {
 		t.Errorf("Infof() output = %q, want to contain 'info 123'", output)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestPackageInfoj(t *testing.T) {
@@ -210,7 +210,7 @@ func TestPackageInfoj(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 	SetDefault(logger)
 
 	Infoj(map[string]any{"status": "ok"})
@@ -220,12 +220,12 @@ func TestPackageInfoj(t *testing.T) {
 		t.Errorf("Infoj() output = %q, want to contain status=ok", output)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestPackageWarn(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 	SetDefault(logger)
 
 	Warn("warn message")
@@ -235,12 +235,12 @@ func TestPackageWarn(t *testing.T) {
 		t.Errorf("Warn() output = %q, want to contain 'warn message'", output)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestPackageWarnf(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 	SetDefault(logger)
 
 	Warnf("warn %s", "test")
@@ -250,7 +250,7 @@ func TestPackageWarnf(t *testing.T) {
 		t.Errorf("Warnf() output = %q, want to contain 'warn test'", output)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestPackageWarnj(t *testing.T) {
@@ -260,7 +260,7 @@ func TestPackageWarnj(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 	SetDefault(logger)
 
 	Warnj(map[string]any{"warning": "alert"})
@@ -270,12 +270,12 @@ func TestPackageWarnj(t *testing.T) {
 		t.Errorf("Warnj() output = %q, want to contain warning=alert", output)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestPackageError(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 	SetDefault(logger)
 
 	Error("error message")
@@ -285,12 +285,12 @@ func TestPackageError(t *testing.T) {
 		t.Errorf("Error() output = %q, want to contain 'error message'", output)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestPackageErrorf(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 	SetDefault(logger)
 
 	Errorf("error %d", 500)
@@ -300,7 +300,7 @@ func TestPackageErrorf(t *testing.T) {
 		t.Errorf("Errorf() output = %q, want to contain 'error 500'", output)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestPackageErrorj(t *testing.T) {
@@ -310,7 +310,7 @@ func TestPackageErrorj(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 	SetDefault(logger)
 
 	Errorj(map[string]any{"error": "failed"})
@@ -320,19 +320,19 @@ func TestPackageErrorj(t *testing.T) {
 		t.Errorf("Errorj() output = %q, want to contain error=failed", output)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestPackagePanic(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 	SetDefault(logger)
 
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("Panic() did not panic")
 		}
-		SetDefault(New(io.Discard))
+		SetDefault(New(Options{Output: io.Discard}))
 	}()
 
 	Panic("panic message")
@@ -340,14 +340,14 @@ func TestPackagePanic(t *testing.T) {
 
 func TestPackagePanicf(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 	SetDefault(logger)
 
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("Panicf() did not panic")
 		}
-		SetDefault(New(io.Discard))
+		SetDefault(New(Options{Output: io.Discard}))
 	}()
 
 	Panicf("panic %s", "test")
@@ -355,14 +355,14 @@ func TestPackagePanicf(t *testing.T) {
 
 func TestPackagePanicj(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 	SetDefault(logger)
 
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("Panicj() did not panic")
 		}
-		SetDefault(New(io.Discard))
+		SetDefault(New(Options{Output: io.Discard}))
 	}()
 
 	Panicj(map[string]any{"panic": "data"})
@@ -370,7 +370,7 @@ func TestPackagePanicj(t *testing.T) {
 
 func TestPackageFatal(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 	SetDefault(logger)
 
 	exitCalled := false
@@ -380,7 +380,7 @@ func TestPackageFatal(t *testing.T) {
 	}
 	defer func() {
 		OsExiter = oldExiter
-		SetDefault(New(io.Discard))
+		SetDefault(New(Options{Output: io.Discard}))
 	}()
 
 	Fatal("fatal message")
@@ -392,7 +392,7 @@ func TestPackageFatal(t *testing.T) {
 
 func TestPackageFatalf(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 	SetDefault(logger)
 
 	exitCalled := false
@@ -402,7 +402,7 @@ func TestPackageFatalf(t *testing.T) {
 	}
 	defer func() {
 		OsExiter = oldExiter
-		SetDefault(New(io.Discard))
+		SetDefault(New(Options{Output: io.Discard}))
 	}()
 
 	Fatalf("fatal %s", "error")
@@ -414,7 +414,7 @@ func TestPackageFatalf(t *testing.T) {
 
 func TestPackageFatalj(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 	SetDefault(logger)
 
 	exitCalled := false
@@ -424,7 +424,7 @@ func TestPackageFatalj(t *testing.T) {
 	}
 	defer func() {
 		OsExiter = oldExiter
-		SetDefault(New(io.Discard))
+		SetDefault(New(Options{Output: io.Discard}))
 	}()
 
 	Fatalj(map[string]any{"fatal": "data"})
@@ -441,7 +441,7 @@ func TestFallbackErrorf(t *testing.T) {
 
 func TestChannel(t *testing.T) {
 	buf := &bytes.Buffer{}
-	SetDefault(New(buf))
+	SetDefault(New(Options{Output: buf}))
 
 	ch1 := Channel("app1")
 	ch2 := Channel("app1")
@@ -454,7 +454,7 @@ func TestChannel(t *testing.T) {
 		t.Errorf("Channel() should return different instances for different names")
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestChannel_Independent(t *testing.T) {
@@ -465,9 +465,9 @@ func TestChannel_Independent(t *testing.T) {
 	oldNewFunc := NewFunc
 	NewFunc = func(name string) *Logger {
 		if name == "ch1" {
-			return New(buf1)
+			return New(Options{Output: buf1})
 		}
-		return New(buf2)
+		return New(Options{Output: buf2})
 	}
 	defer func() { NewFunc = oldNewFunc }()
 
@@ -498,7 +498,7 @@ func TestOsExiter(t *testing.T) {
 
 func BenchmarkPackageInfo(b *testing.B) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 	SetDefault(logger)
 
 	b.ResetTimer()
@@ -506,12 +506,12 @@ func BenchmarkPackageInfo(b *testing.B) {
 		Info("benchmark message")
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func BenchmarkPackageInfof(b *testing.B) {
 	buf := &bytes.Buffer{}
-	logger := New(buf)
+	logger := New(Options{Output: buf})
 	SetDefault(logger)
 
 	b.ResetTimer()
@@ -519,11 +519,11 @@ func BenchmarkPackageInfof(b *testing.B) {
 		Infof("benchmark %s", "message")
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func BenchmarkChannel(b *testing.B) {
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -538,7 +538,7 @@ func TestWithAttrs(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 	SetDefault(logger)
 
 	// Create a new logger with preset attributes
@@ -564,7 +564,7 @@ func TestWithAttrs(t *testing.T) {
 		t.Errorf("Default logger should not have attributes from derived logger")
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestWithPrefix(t *testing.T) {
@@ -574,7 +574,7 @@ func TestWithPrefix(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 	SetDefault(logger)
 
 	// Create a new logger with prefix
@@ -589,7 +589,7 @@ func TestWithPrefix(t *testing.T) {
 		t.Errorf("WithPrefix() output = %q, want to contain 'request received'", output)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestWithGroup(t *testing.T) {
@@ -599,7 +599,7 @@ func TestWithGroup(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 	SetDefault(logger)
 
 	// Create a new logger with group
@@ -614,7 +614,7 @@ func TestWithGroup(t *testing.T) {
 		t.Errorf("WithGroup() output = %q, want to contain 'request.path=/api'", output)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
 
 func TestPackage_Chaining(t *testing.T) {
@@ -624,7 +624,7 @@ func TestPackage_Chaining(t *testing.T) {
 		Output:  buf,
 		NoColor: true,
 	})
-	logger := New(buf, WithHandler(handler))
+	logger := New(Options{Output: buf, Handler: handler})
 	SetDefault(logger)
 
 	// Test chaining WithAttrs, WithPrefix, and WithGroup
@@ -645,5 +645,5 @@ func TestPackage_Chaining(t *testing.T) {
 		t.Errorf("Chained logger output = %q, want to contain 'metrics.status=200'", output)
 	}
 
-	SetDefault(New(io.Discard))
+	SetDefault(New(Options{Output: io.Discard}))
 }
