@@ -1,0 +1,517 @@
+# l4g - Lightweight Logging for Go
+
+> A high-performance, structured logging library for Go compatible with log/slog
+
+## Project Overview
+
+l4g is a lightweight, high-performance structured logging library designed for Go applications. It provides a simple, slog-compatible API with zero-allocation logging for disabled log levels and buffer pooling for minimal garbage collection pressure.
+
+### Key Features
+- Zero allocations for disabled log levels
+- Full structured logging with key-value pairs
+- Compatible with Go's standard log/slog package
+- 7 log levels: Trace, Debug, Info, Warn, Error, Panic, Fatal
+- Optional ANSI color support for terminal output
+- Named channel support for component-specific loggers
+- Thread-safe with sync.Map and atomic operations
+- Buffer pooling via sync.Pool
+- Printf-style and JSON-style logging
+
+### Design Philosophy
+1. Performance first: Zero allocations when logs are disabled
+2. Simplicity: Easy-to-use API similar to standard library
+3. Flexibility: Customizable handlers and formatters
+4. Safety: Thread-safe by default
+5. Compatibility: Works with existing slog handlers
+
+## Architecture
+
+### Core Components
+
+#### 1. Logger (logger.go)
+The main logging interface that users interact with.
+
+**Key Types:**
+- `Logger`: Main logger instance with level, output, and handler
+- `Options`: Configuration struct for creating loggers
+
+**Key Methods:**
+- `New(opts Options) *Logger`: Create new logger with options
+- `Log(level, msg, ...attrs)`: Generic logging method
+- `Trace/Debug/Info/Warn/Error/Panic/Fatal(msg, ...attrs)`: Level-specific methods
+- `Tracef/Debugf/Infof/Warnf/Errorf/Panicf/Fatalf(format, ...args)`: Printf-style
+- `Tracej/Debugj/Infoj/Warnj/Errorj/Panicj/Fatalj(map)`: JSON-style
+- `WithAttrs(...attrs) *Logger`: Create derived logger with preset attributes
+- `WithPrefix(prefix) *Logger`: Create derived logger with prefix
+- `WithGroup(name) *Logger`: Create derived logger with attribute grouping
+- `SetLevel(Level)`: Dynamically change minimum log level
+- `SetOutput(io.Writer)`: Dynamically change output destination
+- `Enabled(Level) bool`: Check if level is enabled
+
+**Options Fields:**
+- `Prefix string`: Prefix for all log messages
+- `Level Level`: Minimum log level (default: Info)
+- `NewHandlerFunc func(HandlerOptions) Handler`: Handler factory
+- `Handler Handler`: Custom handler (overrides factory)
+- `ReplaceAttr func([]string, Attr) Attr`: Attribute transformation
+- `TimeFormat string`: Time format (default: time.StampMilli)
+- `Output io.Writer`: Output destination (default: os.Stderr)
+- `NoColor bool`: Disable colors (default: false)
+
+#### 2. Level (level.go)
+Log level definitions and management.
+
+**Constants (iota + 1, values 1-7):**
+- `LevelTrace = 1`: Most verbose, for detailed debugging
+- `LevelDebug = 2`: Development and debugging information
+- `LevelInfo = 3`: General informational messages (default)
+- `LevelWarn = 4`: Warning messages for potentially harmful situations
+- `LevelError = 5`: Error conditions
+- `LevelPanic = 6`: Severe errors, calls panic() after logging
+- `LevelFatal = 7`: Critical errors, calls os.Exit(1) after logging
+
+**Key Types:**
+- `Level int`: Log level type
+- `LevelVar`: Thread-safe mutable level using atomic.Int32
+- `Leveler interface`: Interface for types that have a Level() method
+
+**Key Methods:**
+- `Level.String() string`: Returns "trace", "debug", "info", etc.
+- `Level.Int() int`: Returns integer value (1-7)
+- `Level.Real() Level`: Clamps value to valid range
+- `Level.MarshalJSON/UnmarshalJSON`: JSON serialization
+- `Level.MarshalText/UnmarshalText`: Text serialization
+- `NewLevelVar(Level) *LevelVar`: Create thread-safe level variable
+- `LevelVar.Set(Level)`: Atomically update level
+- `LevelVar.Level() Level`: Atomically read level
+
+#### 3. Handler (handler.go)
+Output formatting and processing.
+
+**Interfaces:**
+- `Handler`: Core interface for log handlers
+  - `Enabled(Level) bool`: Check if level should be logged
+  - `Handle(Record) error`: Process and output log record
+  - `WithAttrs([]Attr) Handler`: Create handler with preset attributes
+  - `WithGroup(name) Handler`: Create handler with attribute grouping
+  - `WithPrefix(prefix) Handler`: Create handler with prefix
+
+**SimpleHandler Implementation:**
+- Fast, colorized text output
+- Time, level, prefix, message, and attributes
+- ANSI color support (8-bit colors: 0-255)
+- Attribute quoting when needed
+- Group support with dot notation (group.key=value)
+- ReplaceAttr callback for attribute transformation
+
+**HandlerOptions:**
+- `Prefix string`: Handler-level prefix
+- `Level *LevelVar`: Minimum level (thread-safe)
+- `Output *OutputVar`: Output destination (thread-safe)
+- `ReplaceAttr func([]string, Attr) Attr`: Transform attributes
+- `TimeFormat string`: Time format string
+- `NoColor bool`: Disable ANSI colors
+
+**Color Constants:**
+- Standard ANSI colors (0-7): black, red, green, yellow, blue, magenta, cyan, white
+- Bright ANSI colors (8-15): bright variants
+- 216 colors (16-231): 6×6×6 RGB cube
+- Grayscale (232-255): 24 shades
+- Built-in colors: reset, bright, faint, gray, white, and various semantic colors
+
+**Color Functions:**
+- `ColorAttr(color uint8, attr Attr) Attr`: Wrap attribute with color
+- `Err(err error) Attr`: Returns red-colored error attribute with key "error"
+
+#### 4. Record (record.go)
+Internal representation of a log event.
+
+**Structure:**
+- `Time time.Time`: When the log occurred
+- `Level Level`: Log level
+- `Message string`: Log message
+- `Prefix string`: Optional prefix
+- `front [nAttrsInline]Attr`: Inline storage for first 5 attributes
+- `nFront int`: Number of attributes in front
+- `back []Attr`: Overflow storage for additional attributes
+
+**Key Methods:**
+- `NewRecord(time, level, msg) Record`: Create new record
+- `AddAttrs(...Attr)`: Add attributes (inline then overflow)
+- `Add(key, value)`: Add key-value pair
+- `NumAttrs() int`: Count total attributes
+- `Attrs(func(Attr) bool)`: Iterate over all attributes
+- `Clone() Record`: Deep copy for safe mutation
+
+**Performance Optimizations:**
+- Inline array for first 5 attributes (no allocation)
+- Only allocates slice when more than 5 attributes
+- Pre-allocates with estimated capacity
+
+#### 5. Attr (attr.go)
+Structured logging attributes (type alias for slog.Attr).
+
+**Type Constructors:**
+- `String[T ~string](key, value) Attr`: String values with generic constraint
+- `Int[T ~int|~int8|~int16|~int32|~int64](key, value) Attr`: Integer types
+- `Int64(key, value) Attr`: Direct int64
+- `Uint[T ~uint|~uint8|~uint16|~uint32|~uint64](key, value) Attr`: Unsigned integers
+- `Float[T ~float32|~float64](key, value) Attr`: Floating-point numbers
+- `Bool[T ~bool](key, value) Attr`: Boolean values
+- `Time(key, time.Time) Attr`: Timestamps
+- `Duration(key, time.Duration) Attr`: Time durations
+- `Any(key, any) Attr`: Any value type
+- `Group(key, ...any) Attr`: Nested attribute group
+
+**Color Support:**
+- `ColorAttr(color uint8, attr Attr) Attr`: Apply color to attribute
+- `Err(err error) Attr`: Shorthand for red error attribute (color 9)
+- `colorValue`: Internal wrapper implementing slog.LogValuer
+
+**Helper Functions:**
+- `argsToAttrSlice([]any) []Attr`: Convert mixed args to attributes
+- `splitAttrs([]any) ([]Attr, []any)`: Separate Attrs from other values
+- Used by Logf methods to support mixed structured and printf arguments
+
+#### 6. Utilities (util.go)
+Shared utility types and functions.
+
+**OutputVar:**
+- Thread-safe, mutable io.Writer using atomic.Value
+- `NewOutputVar(io.Writer) *OutputVar`: Create wrapper
+- `Set(io.Writer)`: Update output atomically
+- `Output() io.Writer`: Read current output
+- `Write([]byte) (int, error)`: Implement io.Writer
+- `Discard() bool`: Check if output is io.Discard
+
+**Buffer Pool:**
+- `buffer`: Type alias for []byte
+- `newBuffer() *buffer`: Get buffer from sync.Pool
+- `buffer.Free()`: Return buffer to pool (if not too large)
+- `buffer.WriteByte(byte)`: Append single byte
+- `buffer.WriteString(string)`: Append string
+- Size limit: 16KB (larger buffers not pooled)
+
+**Record Helpers:**
+- `argsToAttr([]any) (Attr, []any)`: Extract one attribute
+- `countAttrs([]any) int`: Count attributes in args
+- `countEmptyGroups([]any) int`: Count empty groups
+- `isEmptyAttr(Attr) bool`: Check if attribute is empty
+- `isEmptyGroup(Attr) bool`: Check if group is empty
+
+#### 7. Package Functions (l4g.go)
+Global logger and convenience functions.
+
+**Global State:**
+- `std *Logger`: Default package-level logger
+- `channels sync.Map`: Named logger cache
+- `OsExiter func(int)`: Replaceable exit function (for testing)
+- `NewFunc func(string) *Logger`: Factory for channel loggers
+
+**Package-Level Functions:**
+- `Default() *Logger`: Get default logger
+- `SetDefault(*Logger)`: Set default logger
+- `Channel(name string) *Logger`: Get/create named logger (cached)
+- `SetLevel(Level)`: Set default logger level
+- `GetLevel() Level`: Get default logger level
+- `SetOutput(io.Writer)`: Set default logger output
+- `Output() io.Writer`: Get default logger output
+- All logging methods delegate to default logger
+
+**Convenience Functions:**
+- `WithAttrs(...any) *Logger`: Create derived logger with attributes
+- `WithPrefix(string) *Logger`: Create derived logger with prefix
+- `WithGroup(string) *Logger`: Create derived logger with grouping
+- `FallbackErrorf(format, ...any)`: Last-resort error logging to stderr
+
+## File Structure
+
+```
+l4g/
+├── l4g.go           # Package-level API and global logger
+├── logger.go        # Logger type and methods
+├── level.go         # Log level definitions and LevelVar
+├── handler.go       # Handler interface and SimpleHandler
+├── record.go        # Record type for log events
+├── attr.go          # Attribute constructors and helpers
+├── util.go          # Shared utilities (buffer pool, etc.)
+├── *_test.go        # Comprehensive test suites
+├── README.md        # User documentation (English)
+├── README.zh-CN.md  # User documentation (Chinese)
+├── LICENSE          # License file
+├── go.mod           # Go module definition
+└── llms.txt         # This file (LLM-optimized documentation)
+```
+
+## Usage Patterns
+
+### Pattern 1: Simple Package-Level Logging
+```go
+import "go-slim.dev/l4g"
+
+// Direct usage with package functions
+l4g.Info("Server started")
+l4g.Errorf("Failed to connect: %v", err)
+```
+
+### Pattern 2: Custom Logger Instance
+```go
+logger := l4g.New(l4g.Options{
+    Output: os.Stdout,
+    Level:  l4g.LevelDebug,
+    NoColor: false,
+})
+
+logger.Debug("Debug info", l4g.String("component", "auth"))
+```
+
+### Pattern 3: Named Channels
+```go
+// Different components get their own cached loggers
+dbLog := l4g.Channel("database")
+apiLog := l4g.Channel("api")
+
+dbLog.Info("Query executed", l4g.Duration("time", 50*time.Millisecond))
+apiLog.Info("Request handled", l4g.Int("status", 200))
+```
+
+### Pattern 4: Derived Loggers with Presets
+```go
+// Base logger
+base := l4g.Default()
+
+// Create derived logger with preset attributes
+reqLog := base.WithAttrs(
+    l4g.String("request_id", "abc123"),
+    l4g.String("user", "alice"),
+)
+
+// All subsequent logs include preset attributes
+reqLog.Info("Processing request")      // Includes request_id and user
+reqLog.Error("Request failed")         // Includes request_id and user
+```
+
+### Pattern 5: Grouped Attributes
+```go
+logger := l4g.Default().WithGroup("http")
+
+// All attributes nested under "http" group
+logger.Info("Request",
+    l4g.String("method", "GET"),    // Output: http.method=GET
+    l4g.Int("status", 200),         // Output: http.status=200
+)
+```
+
+### Pattern 6: Dynamic Level Changes
+```go
+// Production: only warnings and errors
+l4g.SetLevel(l4g.LevelWarn)
+
+// Debug mode: verbose logging
+if debugMode {
+    l4g.SetLevel(l4g.LevelTrace)
+}
+```
+
+### Pattern 7: Custom Handler with ReplaceAttr
+```go
+handler := l4g.NewSimpleHandler(l4g.HandlerOptions{
+    Output: os.Stdout,
+    Level:  l4g.NewLevelVar(l4g.LevelInfo),
+    ReplaceAttr: func(groups []string, attr l4g.Attr) l4g.Attr {
+        // Redact sensitive data
+        if attr.Key == "password" || attr.Key == "token" {
+            return l4g.String(attr.Key, "***REDACTED***")
+        }
+        // Add prefixes to nested groups
+        if len(groups) > 0 {
+            attr.Key = strings.Join(groups, ".") + "." + attr.Key
+        }
+        return attr
+    },
+})
+
+logger := l4g.New(l4g.Options{Handler: handler})
+```
+
+### Pattern 8: Mixed Structured and Printf Logging
+```go
+// Logf methods support both printf args AND structured attrs
+l4g.Infof("User %s logged in from %s",
+    username, ipAddress,
+    l4g.String("session", sessionID),  // Structured attribute
+    l4g.Duration("duration", elapsed), // Another structured attribute
+)
+```
+
+### Pattern 9: Error Logging with Color
+```go
+if err != nil {
+    l4g.Error("Operation failed",
+        l4g.Err(err),  // Red-colored error attribute
+        l4g.String("operation", "database_query"),
+    )
+}
+```
+
+### Pattern 10: Testing with Custom Exit
+```go
+func TestFatalLogging(t *testing.T) {
+    // Replace os.Exit for testing
+    oldExiter := l4g.OsExiter
+    exitCode := -1
+    l4g.OsExiter = func(code int) { exitCode = code }
+    defer func() { l4g.OsExiter = oldExiter }()
+
+    l4g.Fatal("Critical error")
+
+    if exitCode != 1 {
+        t.Errorf("Expected exit code 1, got %d", exitCode)
+    }
+}
+```
+
+## Best Practices
+
+1. **Use appropriate log levels**
+   - Trace: Extremely detailed flow tracking
+   - Debug: Development diagnostics
+   - Info: Normal operations (default)
+   - Warn: Degraded functionality
+   - Error: Failures that don't stop the program
+   - Panic: Severe errors requiring recovery
+   - Fatal: Unrecoverable errors
+
+2. **Leverage zero-allocation**
+   - Set appropriate log levels in production
+   - Disabled logs have zero overhead
+   - Use `logger.Enabled(level)` for expensive computations
+
+3. **Use structured logging**
+   - Prefer `l4g.String("key", value)` over string formatting
+   - Use appropriate typed constructors (Int, Duration, etc.)
+   - Avoid putting structured data in message strings
+
+4. **Channel naming conventions**
+   - Use consistent, hierarchical names: "api.auth", "db.postgres"
+   - Channels are cached, so Channel("name") always returns same instance
+   - Consider using package names or component names
+
+5. **Thread safety**
+   - All logger methods are thread-safe
+   - SetLevel/SetOutput are atomic and safe to call concurrently
+   - Handlers must be thread-safe
+
+6. **Performance considerations**
+   - Reuse loggers (they're safe for concurrent use)
+   - Use WithAttrs for common attributes instead of repeating
+   - Buffers are pooled automatically
+   - Avoid fmt.Sprintf unless necessary
+
+7. **Testing**
+   - Use bytes.Buffer or io.Discard for test output
+   - Replace OsExiter to test Fatal logs
+   - Use NoColor: true for predictable test output
+
+8. **Color usage**
+   - Disable colors for file output (NoColor: true)
+   - Use semantic colors: green for success, red for errors
+   - ColorAttr uses 8-bit ANSI (0-255 range)
+   - Err() function uses color 9 (bright red)
+
+## API Quick Reference
+
+### Logger Methods
+- `Log(level Leveler, msg string, args ...any)`
+- `Logf(level Level, format string, args ...any)`
+- `Logj(level Level, j map[string]any)`
+- `Trace/Debug/Info/Warn/Error/Panic/Fatal(msg string, args ...any)`
+- `Tracef/Debugf/Infof/Warnf/Errorf/Panicf/Fatalf(format string, args ...any)`
+- `Tracej/Debugj/Infoj/Warnj/Errorj/Panicj/Fatalj(j map[string]any)`
+- `WithAttrs(args ...any) *Logger`
+- `WithPrefix(prefix string) *Logger`
+- `WithGroup(name string) *Logger`
+- `SetLevel(level Level)`
+- `Level() Level`
+- `SetOutput(w io.Writer)`
+- `Output() io.Writer`
+- `Enabled(level Level) bool`
+
+### Attribute Constructors
+- `String[T ~string](key string, value T) Attr`
+- `Int[T ~int|~int8|~int16|~int32|~int64](key string, value T) Attr`
+- `Int64(key string, value int64) Attr`
+- `Uint[T ~uint|~uint8|~uint16|~uint32|~uint64](key string, value T) Attr`
+- `Float[T ~float32|~float64](key string, value T) Attr`
+- `Bool[T ~bool](key string, value T) Attr`
+- `Time(key string, v time.Time) Attr`
+- `Duration(key string, value time.Duration) Attr`
+- `Any(key string, value any) Attr`
+- `Group(key string, args ...any) Attr`
+- `ColorAttr(color uint8, attr Attr) Attr`
+- `Err(err error) Attr`
+
+### Package Functions
+- `New(opts Options) *Logger`
+- `Default() *Logger`
+- `SetDefault(l *Logger)`
+- `Channel(name string) *Logger`
+- `SetLevel(level Level)`
+- `GetLevel() Level`
+- `SetOutput(w io.Writer)`
+- `Output() io.Writer`
+- `WithAttrs(args ...any) *Logger`
+- `WithPrefix(prefix string) *Logger`
+- `WithGroup(name string) *Logger`
+
+### Handler Creation
+- `NewSimpleHandler(opts HandlerOptions) Handler`
+- `NewLevelVar(level Level) *LevelVar`
+- `NewOutputVar(w io.Writer) *OutputVar`
+
+## Testing
+
+The library includes comprehensive tests:
+- Unit tests for all components (100% coverage goal)
+- Concurrency tests for thread-safety
+- Benchmark tests for performance validation
+- Integration tests for end-to-end scenarios
+
+Run tests:
+```bash
+go test -v                    # All tests
+go test -race                 # With race detector
+go test -bench=. -benchmem   # Benchmarks
+go test -cover               # Coverage report
+```
+
+## Version Requirements
+
+- Go 1.24.0 or later (uses generic type constraints)
+- No external dependencies beyond standard library
+
+## Implementation Notes
+
+1. **Attribute Storage**: Records use inline array for first 5 attributes (optimization for common case)
+2. **Level Values**: Start at 1 (not 0) to distinguish from zero-value
+3. **Buffer Pooling**: 16KB size limit for pooled buffers
+4. **Channel Caching**: Uses sync.Map for thread-safe logger cache
+5. **Atomic Operations**: LevelVar and OutputVar use atomic for lock-free reads
+6. **Color Format**: Uses ANSI 8-bit color codes (0-255 range)
+7. **Default Values**: Info level, os.Stderr output, time.StampMilli format
+
+## Common Issues and Solutions
+
+1. **Colors in file output**: Set `NoColor: true` in HandlerOptions
+2. **Too much debug output**: Use `SetLevel(LevelInfo)` or higher
+3. **Testing Fatal logs**: Replace `OsExiter` with test function
+4. **Custom formatting**: Implement custom Handler or use ReplaceAttr
+5. **Missing logs**: Check log level with `Enabled(level)`
+6. **Performance**: Ensure disabled levels are truly disabled (they should have zero cost)
+
+## Module Information
+
+- Module: `go-slim.dev/l4g`
+- Import: `import "go-slim.dev/l4g"`
+- License: See LICENSE file
+- Repository: Part of go-slim project
