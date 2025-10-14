@@ -24,6 +24,8 @@ type Options struct {
 	ReplaceAttr func(groups []string, attr Attr) Attr
 	// TimeFormat time format string (default: time.StampMilli)
 	TimeFormat string
+	// LevelFormat level format (Default: nil)
+	LevelFormat func(Level) string
 	// Output destination (default: os.Stderr)
 	Output io.Writer
 	// NoColor disable color output (default: false)
@@ -52,6 +54,7 @@ func New(opts Options) *Logger {
 			Output:      l.output,
 			ReplaceAttr: opts.ReplaceAttr,
 			TimeFormat:  opts.TimeFormat,
+			LevelFormat: opts.LevelFormat,
 			NoColor:     opts.NoColor,
 		})
 	}

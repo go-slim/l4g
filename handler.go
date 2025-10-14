@@ -81,10 +81,13 @@ type HandlerOptions struct {
 	// See https://pkg.go.dev/log/slog#HandlerOptions for details.
 	ReplaceAttr func(groups []string, attr Attr) Attr
 
-	// Time format (Default: time.StampMilli)
+	// TimeFormat time format (Default: time.StampMilli)
 	TimeFormat string
 
-	// Disable color (Default: false)
+	// LevelFormat level format (Default: nil)
+	LevelFormat func(Level) string
+
+	// NoColor disable color (Default: false)
 	NoColor bool
 
 	// Output is a destination to which log data will be written.
@@ -322,7 +325,7 @@ func (h *SimpleHandler) appendTintTime(buf *buffer, t time.Time, color int16) {
 		if color >= 0 {
 			appendAnsi(buf, uint8(color), true)
 		} else {
-			buf.WriteString(ansiFaint + ansiGray)
+			buf.WriteString(ansiFaint)
 		}
 		*buf = t.AppendFormat(*buf, h.opts.TimeFormat)
 		buf.WriteString(ansiReset)
@@ -357,22 +360,26 @@ func (h *SimpleHandler) appendTintLevel(buf *buffer, level Level, color int16) {
 		}
 	}
 
-	switch level.Real() {
-	case LevelTrace:
-		buf.WriteString("TRACE") // TRC
-	case LevelDebug:
-		buf.WriteString("DEBUG") // DBG
-	case LevelInfo:
-		buf.WriteString("INFO") // INF
-	case LevelWarn:
-		buf.WriteString("WARN") // WRN
-	case LevelError:
-		buf.WriteString("ERROR") // ERR
-	case LevelPanic:
-		buf.WriteString("PANIC") // PNL
-	case LevelFatal:
-		// LevelFatal or higher
-		buf.WriteString("FATAL") // FTL
+	// Use custom LevelFormat if provided, otherwise use default
+	if h.opts.LevelFormat != nil {
+		buf.WriteString(h.opts.LevelFormat(level))
+	} else {
+		switch level.Real() {
+		case LevelTrace:
+			buf.WriteString("TRACE")
+		case LevelDebug:
+			buf.WriteString("DEBUG")
+		case LevelInfo:
+			buf.WriteString("INFO")
+		case LevelWarn:
+			buf.WriteString("WARN")
+		case LevelError:
+			buf.WriteString("ERROR")
+		case LevelPanic:
+			buf.WriteString("PANIC")
+		case LevelFatal:
+			buf.WriteString("FATAL")
+		}
 	}
 
 	if !h.opts.NoColor {

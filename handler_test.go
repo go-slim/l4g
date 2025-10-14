@@ -482,3 +482,132 @@ func BenchmarkSimpleHandler_WithAttrs(b *testing.B) {
 		_ = h.WithAttrs(attrs)
 	}
 }
+
+func TestSimpleHandler_LevelFormat(t *testing.T) {
+	tests := []struct {
+		name        string
+		level       Level
+		levelFormat func(Level) string
+		want        string
+	}{
+		{
+			name:  "default format trace",
+			level: LevelTrace,
+			want:  "TRACE",
+		},
+		{
+			name:  "default format info",
+			level: LevelInfo,
+			want:  "INFO",
+		},
+		{
+			name:  "custom format abbreviations",
+			level: LevelDebug,
+			levelFormat: func(l Level) string {
+				switch l.Real() {
+				case LevelTrace:
+					return "TRC"
+				case LevelDebug:
+					return "DBG"
+				case LevelInfo:
+					return "INF"
+				case LevelWarn:
+					return "WRN"
+				case LevelError:
+					return "ERR"
+				case LevelPanic:
+					return "PNL"
+				case LevelFatal:
+					return "FTL"
+				default:
+					return "???"
+				}
+			},
+			want: "DBG",
+		},
+		{
+			name:  "custom format with emoji",
+			level: LevelError,
+			levelFormat: func(l Level) string {
+				switch l.Real() {
+				case LevelTrace:
+					return "🔍 TRACE"
+				case LevelDebug:
+					return "🐛 DEBUG"
+				case LevelInfo:
+					return "ℹ️ INFO"
+				case LevelWarn:
+					return "⚠️ WARN"
+				case LevelError:
+					return "❌ ERROR"
+				case LevelPanic:
+					return "💥 PANIC"
+				case LevelFatal:
+					return "☠️ FATAL"
+				default:
+					return "❓"
+				}
+			},
+			want: "❌ ERROR",
+		},
+		{
+			name:  "custom format numeric",
+			level: LevelWarn,
+			levelFormat: func(l Level) string {
+				return "[" + l.String() + ":" + string(rune('0'+l.Int())) + "]"
+			},
+			want: "[warn:4]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf := &bytes.Buffer{}
+			h := NewSimpleHandler(HandlerOptions{
+				Level:       LevelTrace,
+				Output:      buf,
+				NoColor:     true,
+				LevelFormat: tt.levelFormat,
+			})
+
+			r := NewRecord(time.Now(), tt.level, "test message")
+			err := h.Handle(r)
+			if err != nil {
+				t.Errorf("SimpleHandler.Handle() error = %v", err)
+			}
+
+			output := buf.String()
+			if !strings.Contains(output, tt.want) {
+				t.Errorf("LevelFormat output = %q, want to contain %q", output, tt.want)
+			}
+		})
+	}
+}
+
+func TestSimpleHandler_LevelFormat_WithColor(t *testing.T) {
+	buf := &bytes.Buffer{}
+	h := NewSimpleHandler(HandlerOptions{
+		Level:  LevelInfo,
+		Output: buf,
+		LevelFormat: func(l Level) string {
+			return "[" + l.String() + "]"
+		},
+		NoColor: false, // colors enabled
+	})
+
+	r := NewRecord(time.Now(), LevelInfo, "test")
+	err := h.Handle(r)
+	if err != nil {
+		t.Errorf("SimpleHandler.Handle() error = %v", err)
+	}
+
+	output := buf.String()
+	// Should contain custom format
+	if !strings.Contains(output, "[info]") {
+		t.Errorf("Output should contain custom level format [info], got: %q", output)
+	}
+	// Should still have ANSI color codes
+	if !strings.Contains(output, "\x1b[") {
+		t.Errorf("Output should contain ANSI color codes")
+	}
+}
