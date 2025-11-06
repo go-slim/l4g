@@ -281,7 +281,7 @@ func TestLevelVar_Concurrent(t *testing.T) {
 	lv := NewLevelVar(LevelInfo)
 
 	done := make(chan bool)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		go func(level Level) {
 			lv.Set(level)
 			_ = lv.Level()
@@ -290,7 +290,7 @@ func TestLevelVar_Concurrent(t *testing.T) {
 		}(Level(i % 7))
 	}
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		<-done
 	}
 }

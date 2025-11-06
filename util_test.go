@@ -128,7 +128,7 @@ func TestOutputVar_Concurrent(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
 
-	for i := 0; i < goroutines; i++ {
+	for range goroutines {
 		go func() {
 			defer wg.Done()
 
@@ -253,7 +253,7 @@ func TestBuffer_Growth(t *testing.T) {
 	defer buf.Free()
 
 	// Write data to cause growth
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		buf.WriteString("test data ")
 	}
 
@@ -264,8 +264,7 @@ func TestBuffer_Growth(t *testing.T) {
 
 func BenchmarkBuffer_Write(b *testing.B) {
 	data := []byte("benchmark data")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		buf := newBuffer()
 		buf.Write(data)
 		buf.Free()
@@ -274,8 +273,7 @@ func BenchmarkBuffer_Write(b *testing.B) {
 
 func BenchmarkBuffer_WriteString(b *testing.B) {
 	data := "benchmark data"
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		buf := newBuffer()
 		buf.WriteString(data)
 		buf.Free()
@@ -283,8 +281,7 @@ func BenchmarkBuffer_WriteString(b *testing.B) {
 }
 
 func BenchmarkBuffer_WriteByte(b *testing.B) {
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		buf := newBuffer()
 		buf.WriteByte('x')
 		buf.Free()

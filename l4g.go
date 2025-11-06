@@ -15,7 +15,7 @@ var (
 	mu sync.Mutex
 
 	// ls stores named channel loggers, keyed by channel name.
-	ls sync.Map // map[string]*Logger
+	ls *sync.Map // map[string]*Logger
 
 	// OsExiter is the function called by Fatal and Fatalf to exit the program.
 	// It is set to os.Exit by default but can be overridden for testing.
@@ -28,6 +28,7 @@ var (
 
 func init() {
 	std = New(Options{Output: os.Stderr})
+	ls = new(sync.Map)
 	OsExiter = os.Exit
 	NewFunc = func(_ string) *Logger { return New(Options{Output: os.Stderr}) }
 }

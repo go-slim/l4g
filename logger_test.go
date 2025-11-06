@@ -622,8 +622,7 @@ func BenchmarkLogger_Info(b *testing.B) {
 	buf := &bytes.Buffer{}
 	logger := New(Options{Output: buf})
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Info("benchmark message")
 	}
 }
@@ -632,8 +631,7 @@ func BenchmarkLogger_InfoWithAttrs(b *testing.B) {
 	buf := &bytes.Buffer{}
 	logger := New(Options{Output: buf})
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Info("benchmark message", String("key1", "value1"), Int("key2", 42))
 	}
 }
@@ -642,8 +640,7 @@ func BenchmarkLogger_Infof(b *testing.B) {
 	buf := &bytes.Buffer{}
 	logger := New(Options{Output: buf})
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Infof("benchmark %s %d", "message", 42)
 	}
 }
@@ -652,8 +649,7 @@ func BenchmarkLogger_Disabled(b *testing.B) {
 	buf := &bytes.Buffer{}
 	logger := New(Options{Output: buf, Level: LevelError})
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		logger.Debug("this should be skipped")
 	}
 }

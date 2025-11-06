@@ -472,9 +472,10 @@ func TestChannel_Independent(t *testing.T) {
 	defer func() { NewFunc = oldNewFunc }()
 
 	// Clear the channels map (sync.Map doesn't have a clear method, so we replace it)
-	oldLs := ls
-	ls = sync.Map{}
-	defer func() { ls = oldLs }()
+	// Store original map and restore later - use a new variable to avoid copying lock
+	originalLs := ls
+	ls = &sync.Map{}
+	defer func() { ls = originalLs }()
 
 	ch1 := Channel("ch1")
 	ch2 := Channel("ch2")
@@ -501,8 +502,7 @@ func BenchmarkPackageInfo(b *testing.B) {
 	logger := New(Options{Output: buf})
 	SetDefault(logger)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		Info("benchmark message")
 	}
 
@@ -514,8 +514,7 @@ func BenchmarkPackageInfof(b *testing.B) {
 	logger := New(Options{Output: buf})
 	SetDefault(logger)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		Infof("benchmark %s", "message")
 	}
 
@@ -525,8 +524,7 @@ func BenchmarkPackageInfof(b *testing.B) {
 func BenchmarkChannel(b *testing.B) {
 	SetDefault(New(Options{Output: io.Discard}))
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = Channel("test")
 	}
 }

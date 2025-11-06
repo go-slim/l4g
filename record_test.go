@@ -47,7 +47,7 @@ func TestRecord_AddAttrs(t *testing.T) {
 	t.Run("many attrs", func(t *testing.T) {
 		r := NewRecord(time.Now(), LevelInfo, "test")
 		attrs := make([]Attr, 10)
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			attrs[i] = Int("key", i)
 		}
 		r.AddAttrs(attrs...)
@@ -93,7 +93,7 @@ func TestRecord_Add(t *testing.T) {
 	t.Run("many pairs", func(t *testing.T) {
 		r := NewRecord(time.Now(), LevelInfo, "test")
 		args := make([]any, 20)
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			args[i*2] = "key"
 			args[i*2+1] = i
 		}
@@ -133,7 +133,7 @@ func TestRecord_NumAttrs(t *testing.T) {
 		{
 			name: "overflow to back",
 			setup: func(r *Record) {
-				for i := 0; i < 10; i++ {
+				for i := range 10 {
 					r.AddAttrs(Int("key", i))
 				}
 			},
@@ -364,7 +364,7 @@ func TestRecord_FrontBackSplit(t *testing.T) {
 	r := NewRecord(time.Now(), LevelInfo, "test")
 
 	// Add exactly nAttrsInline attributes
-	for i := 0; i < nAttrsInline; i++ {
+	for i := range nAttrsInline {
 		r.AddAttrs(Int("key", i))
 	}
 
@@ -393,16 +393,14 @@ func BenchmarkRecord_AddAttrs(b *testing.B) {
 		Bool("key3", true),
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		r := NewRecord(time.Now(), LevelInfo, "test")
 		r.AddAttrs(attrs...)
 	}
 }
 
 func BenchmarkRecord_Add(b *testing.B) {
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		r := NewRecord(time.Now(), LevelInfo, "test")
 		r.Add("key1", "value1", "key2", 42, "key3", true)
 	}
@@ -412,8 +410,7 @@ func BenchmarkRecord_Clone(b *testing.B) {
 	r := NewRecord(time.Now(), LevelInfo, "test")
 	r.AddAttrs(String("a", "1"), Int("b", 2), Bool("c", true))
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = r.Clone()
 	}
 }

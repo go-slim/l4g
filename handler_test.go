@@ -443,8 +443,7 @@ func BenchmarkSimpleHandler_Handle(b *testing.B) {
 	r := NewRecord(time.Now(), LevelInfo, "benchmark message")
 	r.AddAttrs(String("key1", "value1"), Int("key2", 42))
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		buf.Reset()
 		_ = h.Handle(r)
 	}
@@ -461,8 +460,7 @@ func BenchmarkSimpleHandler_HandleWithColor(b *testing.B) {
 	r := NewRecord(time.Now(), LevelInfo, "benchmark message")
 	r.AddAttrs(String("key1", "value1"), Int("key2", 42))
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		buf.Reset()
 		_ = h.Handle(r)
 	}
@@ -477,8 +475,7 @@ func BenchmarkSimpleHandler_WithAttrs(b *testing.B) {
 
 	attrs := []Attr{String("a", "1"), Int("b", 2), Bool("c", true)}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = h.WithAttrs(attrs)
 	}
 }
