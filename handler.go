@@ -351,11 +351,11 @@ func (h *SimpleHandler) appendTintLevel(buf *buffer, level Level, color int16) {
 			case LevelDebug:
 				buf.WriteString(ansiBrightCyan)
 			case LevelInfo:
-				buf.WriteString(ansiWhite)
-			case LevelWarn:
 				buf.WriteString(ansiBrightGreen)
-			case LevelError:
+			case LevelWarn:
 				buf.WriteString(ansiBrightYellow)
+			case LevelError:
+				buf.WriteString(ansiBrightRed)
 			case LevelPanic:
 				buf.WriteString(ansiBrightRed)
 			default:
